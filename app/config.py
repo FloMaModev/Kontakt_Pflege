@@ -32,6 +32,13 @@ ODOO_COMPANY_ID = _int("ODOO_COMPANY_ID")
 # --- Prüfung ---
 KONTROLLE_AB = os.environ.get("KONTROLLE_AB", "2025-01-01")  # Vier-Augen-Kontrolle gilt für Änderungen ab diesem Datum
 INCLUDE_INACTIVE = _bool("INCLUDE_INACTIVE", False)          # archivierte Kontakte mitladen
+# Welche Kontakte werden geprüft?
+#   alle                 = alle aktiven Kontakte außer eigene Firmen, Benutzer und Mitarbeiter (Standard)
+#   rechnungsempfaenger  = nur Unternehmen/Einzelkontakte, Rechnungsadressen und Kontakte mit Rechnungen
+PRUEF_UMFANG = os.environ.get("PRUEF_UMFANG", "alle").strip().lower() or "alle"
+# Massenänderungen (Import, Migration, Serveraktion) brauchen keine Vier-Augen-Kontrolle:
+# Hat eine Person in derselben Minute mehr als so viele Kontakte geändert, zählt das nicht als Änderung.
+MASSEN_GRENZE = _int("MASSEN_GRENZE", 30)
 TZ = os.environ.get("TZ_ANZEIGE", os.environ.get("TZ", "Europe/Berlin"))
 
 # --- Web ---

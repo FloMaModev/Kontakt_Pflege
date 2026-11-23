@@ -846,6 +846,9 @@ const ERKL = {
   'Falsches Format: nur „Deutschland (ZUGFeRD)“ oder „Deutschland (XRechnung)“': {
     warum: 'Eingestellt ist ein Format für ein anderes Land (z. B. „Frankreich (FacturX)“, „EU-Standard (Peppol Bis 3.0)“ oder „Niederlande (NLCIUS)“). Deutsche Kunden brauchen ZUGFeRD oder XRechnung.',
     tun: 'Reiter „Buchhaltung“ → „Format der elektronischen Rechnung“ auf „Deutschland (ZUGFeRD)“ stellen, bei Behörden „Deutschland (XRechnung)“.'},
+  'Unternehmen: E-Rechnung noch nicht bereit': {
+    warum: 'Dieser Kontakt gehört zu einem Unternehmen. Format, Käuferreferenz, Peppol-ID und USt-IdNr. nimmt Odoo immer vom Unternehmen. Dort fehlt noch etwas, deshalb kann auch an diesen Kontakt noch keine gültige E-Rechnung gehen.',
+    tun: 'Hier selbst ist nichts zu tun. Das Unternehmen öffnen (oben „gehört zu“) und dort die Fehler beheben. Danach ist dieser Kontakt automatisch auch bereit.'},
   'Kontrolle: als falsch gemeldet': {
     warum: 'Ein Kollege hat die letzte Änderung an diesem Kontakt kontrolliert und einen Fehler gefunden (Vier-Augen-Prinzip). Den Grund sieht man oben in der Karte und im Chatter des Kontakts in Odoo.',
     tun: 'Den gemeldeten Fehler in Odoo korrigieren und speichern. Nach „↻ Neu laden“ prüft wieder ein Kollege.'},
@@ -958,11 +961,14 @@ const erklBlock = (list, cls) => list.map(t => { const e = erkl(t);
     (e ? `<div><b>Warum?</b> ${esc(e.warum)}</div><div><b>Was tun?</b> ${esc(e.tun)}</div>` : '') + `</div>`; }).join('');
 
 
-const FEHLER = ['GLN im Namen: als Peppol-ID „EAN-Standortcode“ eintragen','GLN im Namen: Prüfziffer falsch','Handelskunde mit GLN: Format muss „Deutschland (ZUGFeRD)“ sein','Letzte E-Rechnung: Peppol-Versand fehlgeschlagen','Kontrolle: als falsch gemeldet','Format nicht gewählt (steht auf „XML-Format“)','Falsches Format: nur „Deutschland (ZUGFeRD)“ oder „Deutschland (XRechnung)“','Straße fehlt','PLZ fehlt','Ort fehlt','Land fehlt','E-Mail fehlt','E-Mail ungültig','E-Mail enthält unsichtbare Zeichen (Leerzeichen/Zeilenumbruch)','Mehrere E-Mail-Adressen in einem Feld','USt-IdNr. fehlt (EU-Ausland)','USt-IdNr. Format ungültig','USt-IdNr. Prüfziffer falsch','Kein E-Rechnungsformat','XRechnung: Käuferreferenz BT-10 (Feld Referenz am Unternehmen) fehlt','B2G: Leitweg-ID fehlt (Peppol-Endpoint)','B2G: Leitweg-ID hat falsches Format','B2G: Leitweg-ID Prüfziffer falsch','Peppol-Art falsch: Leitweg-ID unter anderer Art eingetragen','B2G: Format muss XRechnung sein','Peppol: EAS/Endpoint fehlt','Peppol: Empfänger nicht verifiziert','Peppol: EAS 9958 ist veraltet','Peppol 9930: Endpoint ist keine gültige DE-USt-IdNr.','GLN: muss 13 Ziffern haben','GLN: Prüfziffer falsch'];
+const FIRMA_NB = 'Unternehmen: E-Rechnung noch nicht bereit';
+const ownErr = r => r._err.some(e => e !== FIRMA_NB);   // eigene Fehler (ohne „Unternehmen nicht bereit“)
+const FEHLER = ['Unternehmen: E-Rechnung noch nicht bereit','GLN im Namen: als Peppol-ID „EAN-Standortcode“ eintragen','GLN im Namen: Prüfziffer falsch','Handelskunde mit GLN: Format muss „Deutschland (ZUGFeRD)“ sein','Letzte E-Rechnung: Peppol-Versand fehlgeschlagen','Kontrolle: als falsch gemeldet','Format nicht gewählt (steht auf „XML-Format“)','Falsches Format: nur „Deutschland (ZUGFeRD)“ oder „Deutschland (XRechnung)“','Straße fehlt','PLZ fehlt','Ort fehlt','Land fehlt','E-Mail fehlt','E-Mail ungültig','E-Mail enthält unsichtbare Zeichen (Leerzeichen/Zeilenumbruch)','Mehrere E-Mail-Adressen in einem Feld','USt-IdNr. fehlt (EU-Ausland)','USt-IdNr. Format ungültig','USt-IdNr. Prüfziffer falsch','Kein E-Rechnungsformat','XRechnung: Käuferreferenz BT-10 (Feld Referenz am Unternehmen) fehlt','B2G: Leitweg-ID fehlt (Peppol-Endpoint)','B2G: Leitweg-ID hat falsches Format','B2G: Leitweg-ID Prüfziffer falsch','Peppol-Art falsch: Leitweg-ID unter anderer Art eingetragen','B2G: Format muss XRechnung sein','Peppol: EAS/Endpoint fehlt','Peppol: Empfänger nicht verifiziert','Peppol: EAS 9958 ist veraltet','Peppol 9930: Endpoint ist keine gültige DE-USt-IdNr.','GLN: muss 13 Ziffern haben','GLN: Prüfziffer falsch'];
 const HINW = ['GLN im Namen: auch im Feld Barcode eintragen','USt-IdNr. fehlt (empfohlen)','Format nur Odoo-Vorschlag (nicht bewusst gesetzt)','Versandart nicht gesetzt (Standard)','GLN im Barcode: Prüfziffer falsch','GLN in Barcode und Peppol-Endpoint unterschiedlich','Leitweg-ID im Feld Referenz: Behörde? Peppol-Art „Leitweg-ID“ prüfen','Privatperson: E-Rechnung nicht erforderlich'];
 const DUPW = ['gleiche USt-IdNr.','gleiche IBAN','gleiche Peppol-ID','gleiche Referenz/Kundennr.','gleicher Name + PLZ','gleiche E-Mail','gleicher Name','gleiche Telefonnr.'];
 // Gewicht = Dringlichkeit (je höher, desto weiter oben in der Arbeitsliste)
 const WEIGHT = {
+  'Unternehmen: E-Rechnung noch nicht bereit':1,
   'GLN im Namen: als Peppol-ID „EAN-Standortcode“ eintragen':8,'GLN im Namen: Prüfziffer falsch':8,'Handelskunde mit GLN: Format muss „Deutschland (ZUGFeRD)“ sein':8,
   'Letzte E-Rechnung: Peppol-Versand fehlgeschlagen':9,
   'Kontrolle: als falsch gemeldet':9,
@@ -1058,6 +1064,16 @@ const adrLabel = r => !r.zugehoeriges_unternehmen ? (yes(r.ist_unternehmen) ? 'U
 /* ---------- Checkliste "fertig": alles ausgefuellt? ---------- */
 function fertigCheck(r){
   const mail = v => !!v && /^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$/.test(String(v).trim());
+  if (!r._cpRow) {
+    // Ansprechpartner/Adresse: nur die eigenen Angaben; das Unternehmen kommt im zweiten Durchlauf dazu
+    const needMail = r.adresstyp === 'invoice' || Number(r.rechnungen_anzahl || 0) > 0 || !!String(r.email || '').trim();
+    const L = [['name', 'Name', !!String(r.name || r.zugehoeriges_unternehmen || '').trim()],
+      ['str', 'Straße', !!String(r.strasse || '').trim()], ['plz', 'PLZ', !!String(r.plz || '').trim()],
+      ['ort', 'Ort', !!String(r.stadt || '').trim()], ['land', 'Land', !!r.land_code]];
+    if (needMail) L.push(['mail', 'E-Mail (genau eine gültige Adresse)', r.rechnungsversand === 'peppol' || (mail(r.email) && !/[,;]/.test(r.email))]);
+    L.push(['kon', 'Vier-Augen-Kontrolle bestanden', !r._konOpen && r._kon !== 'falsch']);
+    return L;
+  }
   const b2g = r.peppol_eas === '0204', firm = !/^B2C/i.test(String(r.kundenart || '')), pep = r.rechnungsversand === 'peppol';
   const L = [
     ['name', 'Name', !!String(r.name || r.zugehoeriges_unternehmen || '').trim()],
@@ -1085,10 +1101,11 @@ DATA.forEach((r, i) => {
   r._err = split(r.e_rechnung_fehler); r._hint = split(r.e_rechnung_hinweise);
   r._dup = r.dublette_verdacht || ''; r._dupWhy = split(r.dublette_gruende); r._dupWith = split(r.dublette_mit);
   r._fmt = r.e_rechnungsformat || '';
+  r._cpRow = r.ist_rechnungsunternehmen !== 'nein';   // Unternehmen bzw. Einzelkontakt (nicht Ansprechpartner/Adresse)
   // Bereit nur mit bewusst gewähltem ZUGFeRD oder XRechnung ("XML-Format" in Odoo = nichts gewählt)
   r._vorschlag = /vorschlag/i.test(String(r.e_rechnungsformat_herkunft || ''));
   r._privat = r._rel && (/^B2C/i.test(String(r.kundenart || '')) || r._hint.includes('Privatperson: E-Rechnung nicht erforderlich'));
-  if (r._rel && !r._privat && r._fmt) {
+  if (r._rel && !r._privat && r._fmt && r._cpRow) {
     if (r._vorschlag || r._hint.includes('Format nur Odoo-Vorschlag (nicht bewusst gesetzt)')) {
       r._vorschlag = true; r._hint = r._hint.filter(x => x !== 'Format nur Odoo-Vorschlag (nicht bewusst gesetzt)');
       if (!r._err.includes('Format nicht gewählt (steht auf „XML-Format“)')) r._err.unshift('Format nicht gewählt (steht auf „XML-Format“)');
@@ -1099,7 +1116,7 @@ DATA.forEach((r, i) => {
   if (r._kon === 'falsch' && !r._err.includes('Kontrolle: als falsch gemeldet')) r._err.unshift('Kontrolle: als falsch gemeldet');
   // Laeuft die E-Rechnung? Letzte Rechnung mit erzeugter E-Rechnung (XML), nach der letzten Aenderung, ohne Peppol-Fehler
   r._xmlOk = yes(r.erech_letzte_mit_xml); r._peppolErr = r.erech_peppol === 'error';
-  if (r._rel && !r._privat && r._peppolErr && !r._err.includes('Letzte E-Rechnung: Peppol-Versand fehlgeschlagen')) r._err.unshift('Letzte E-Rechnung: Peppol-Versand fehlgeschlagen');
+  if (r._rel && !r._privat && r._cpRow && r._peppolErr && !r._err.includes('Letzte E-Rechnung: Peppol-Versand fehlgeschlagen')) r._err.unshift('Letzte E-Rechnung: Peppol-Versand fehlgeschlagen');
   r._nachAend = !r.kontrolle_geaendert_am || String(r.erech_xml_erstellt || '') >= String(r.kontrolle_geaendert_am);
   // Unterkontakte (Ansprechpartner, Adressen) sind erst fertig, wenn sie selbst schon eine Rechnung bekommen haben
   // fertig = beim Kontakt ist alles ausgefuellt und kontrolliert (eine verschickte Rechnung ist nur zusaetzlicher Nachweis)
@@ -1115,6 +1132,22 @@ DATA.forEach((r, i) => {
   r._inv = Number(r.rechnungen_anzahl || 0); if (r._inv) sc += 40;   // hat schon Rechnungen bekommen -> zuerst
   r._score = sc;
 });
+/* Ansprechpartner/Adressen: Die E-Rechnung geht nur, wenn auch ihr Unternehmen bereit ist */
+{
+  const byId = new Map(DATA.map(r => [String(r.odoo_id), r]));
+  DATA.forEach(r => {
+    if (!r._rel || r._cpRow || r._privat) return;
+    const f = byId.get(String(r.rechnungs_unternehmen_id)); if (!f || !f._rel || f._privat) return;
+    r._firma = f;
+    const it = ['firma', `Unternehmen „${f.name}“ ist ★ fertig`, f.e_rechnung_bereit === 'fertig'];
+    r._check.push(it); if (!it[2]) r._fehlt.push(it);
+    r._fertig = r._fertig && it[2];
+    if (f.e_rechnung_bereit === 'nein' && !r._err.includes(FIRMA_NB)) { r._err.push(FIRMA_NB); r._score += (WEIGHT[FIRMA_NB] || 1) * 10; }
+    r.e_rechnung_bereit = r._err.length ? 'nein' : r._konOpen ? 'kontrolle' : r._fertig ? 'fertig' : 'ja';
+    r._stufe = r.e_rechnung_bereit;
+    r._sig = r._err.join('|') + '#' + r._hint.join('|') + '#' + r._dupWhy.join('|') + '#' + r._kon + (r.kontrolle_geaendert_am || '');
+  });
+}
 
 /* ---------- Erledigt-Speicher (nur in diesem Browser) ---------- */
 const DONE_KEY = 'odoo18_erechnung_erledigt_v1';
@@ -1149,7 +1182,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab
 const SCOPES = [
   ['dupS', '① Dubletten prüfen (stark)', r => r._act && r._dup === 'stark'],
   ['dup',  '① Dubletten prüfen (alle)',  r => r._act && !!r._dup],
-  ['err',  '② Fehler beheben',           r => r._rel && r._act && r._err.length],
+  ['err',  '② Fehler beheben',           r => r._rel && r._act && ownErr(r)],
   ['esc',  '🎓 Vom Praktikanten: Kollegen fragen', r => Object.keys(EZ.esc).some(k => k.startsWith(r.odoo_id + '|'))],
   ['fast', '④ Bis „fertig“: fehlende Angaben ergänzen', r => r._rel && r._act && r.e_rechnung_bereit === 'ja'],
   ['hint', '④ Alle Hinweise',       r => r._rel && r._act && r._hint.length && !r._err.length],
@@ -2420,7 +2453,7 @@ function renderCreators(){
     const who = r[CR.field] || '';
     const x = rows[who] || (rows[who] = {who, n:0, err:0, ok:0, fmt:0, top:{}});
     x.n++; if (r.e_rechnung_bereit === 'ja') x.ok++;
-    if (r._err.length) { x.err++; r._err.forEach(t => x.top[t] = (x.top[t] || 0) + 1); }
+    if (ownErr(r)) { x.err++; r._err.forEach(t => x.top[t] = (x.top[t] || 0) + 1); }
     if (r._err.includes('Format nicht gewählt (steht auf „XML-Format“)') || r._err.includes('Kein E-Rechnungsformat')) x.fmt++;
   });
   const arr = Object.values(rows).map(x => Object.assign(x, {pct: x.n ? x.err / x.n : 0, topT: Object.entries(x.top).sort((a, b) => b[1] - a[1])[0]}));
@@ -2465,7 +2498,7 @@ function renderStats(){
     ['★ E-Rechnung fertig', rel.filter(r => r.e_rechnung_bereit === 'fertig').length, 'ok', () => showAllBereit('fertig')],
     ['④ bereit, noch nicht alles ausgefüllt', rel.filter(r => r.e_rechnung_bereit === 'ja').length, 'ok', () => goWork('fast')],
     ['① Dubletten stark', act.filter(r => r._dup === 'stark').length, 'err', () => goWork('dupS')],
-    ['② mit Fehlern', rel.filter(r => r._err.length).length, 'err', () => goWork('err')],
+    ['② mit Fehlern', rel.filter(ownErr).length, 'err', () => goWork('err')],
     ['③ Kontrolle offen', act.filter(r => r._konOpen).length, 'warn', () => goWork('kon')],
     ['Kontrolle: falsch', act.filter(r => r._kon === 'falsch').length, 'err', () => goWork('konf')],
     ['nur Hinweise', rel.filter(r => r._hint.length && !r._err.length).length, 'warn', () => goWork('hint')],
@@ -2477,10 +2510,10 @@ function renderStats(){
   ];
   $('kpis').innerHTML = ''; k.forEach(([l, v, c, fn]) => { const d = document.createElement('div'); d.className = 'kpi ' + c; d.innerHTML = `<div class="v">${v.toLocaleString('de-DE')}</div><div class="l">${l}</div>`; if (fn) d.onclick = fn; else d.style.cursor = 'default'; $('kpis').appendChild(d); });
   const E = {}, H = {}, DW = {}, F = {}, KA = {}, SE = {}, RP = {};
-  rel.forEach(r => { r._err.forEach(t => E[t] = (E[t] || 0) + 1); if (!r._err.length) r._hint.forEach(t => H[t] = (H[t] || 0) + 1);
+  rel.forEach(r => { r._err.forEach(t => { if (t !== FIRMA_NB) E[t] = (E[t] || 0) + 1; }); if (!r._err.length) r._hint.forEach(t => H[t] = (H[t] || 0) + 1);
     const f = FMT[r._fmt] || r._fmt; F[f] = (F[f] || 0) + 1; KA[r.kundenart || '–'] = (KA[r.kundenart || '–'] || 0) + 1;
     const s = 'Versand: ' + (SEND[r.rechnungsversand] || r.rechnungsversand || '–'); SE[s] = (SE[s] || 0) + 1;
-    if (r._err.length) { const v = r.vertriebsmitarbeiter || '(kein Vertriebsmitarbeiter)'; RP[v] = (RP[v] || 0) + 1; } });
+    if (ownErr(r)) { const v = r.vertriebsmitarbeiter || '(kein Vertriebsmitarbeiter)'; RP[v] = (RP[v] || 0) + 1; } });
   act.forEach(r => r._dupWhy.forEach(t => DW[t] = (DW[t] || 0) + 1));
   bars('errs', E, 'err', t => goWork('err', t), 30); bars('hints', H, 'warn', t => goWork('hint', t), 30); bars('dups', DW, 'dup', t => goWork('dup', t));
   bars('fmts', F, '', null); bars('kinds', KA, '', null); bars('sends', SE, '', null);

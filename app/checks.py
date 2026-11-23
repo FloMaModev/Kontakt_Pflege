@@ -126,7 +126,7 @@ def mail_problem(email: str) -> str | None:
     e = s(email)
     if not e.strip():
         return F_MAIL_FEHLT
-    if e.count("@") > 1 or re.search(r"[,;]", e) or re.search(r"\S+@\S+\s+\S+@\S+", e):
+    if re.search(r"[,;]", e) and e.count("@") > 1 or len(re.findall(r"[^\s,;@]+@[^\s,;@]+", e)) > 1:
         return F_MAIL_MEHR
     if INVISIBLE_RE.search(e):
         return F_MAIL_INV

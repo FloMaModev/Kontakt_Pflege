@@ -278,7 +278,7 @@ def _query_all(cur, S: Schema, cid: int) -> dict:
 # =================================================================== Spalten
 COLS = [
     "odoo_id", "externe_id", "name", "ist_unternehmen", "adresstyp", "zugehoeriges_unternehmen", "rechnungs_unternehmen",
-    "kundenart", "referenz", "anrede", "stelle",
+    "kundenart", "referenz", "anrede", "stelle", "rechnungs_unternehmen_id", "ist_rechnungsunternehmen",
     "strasse", "strasse2", "plz", "stadt", "bundesland", "land", "land_code",
     "email", "telefon", "mobil", "webseite", "sprache",
     "e_rechnungsformat", "e_rechnungsformat_herkunft", "rechnungsversand", "kaeuferreferenz_bt10",
@@ -349,11 +349,15 @@ def _build_rows(d: dict, cid: int) -> list[dict]:
     def is_internal(p):
         return (p["id"] in internal or p["id"] in excluded_roots or p["commercial_partner_id"] in excluded_roots)
 
-    # ---- Relevanz: wer bekommt (potenziell) Rechnungen? ----
+    # ---- Relevanz: welche Kontakte werden geprüft? (PRUEF_UMFANG) ----
     rel = {}
+    alle = config.PRUEF_UMFANG != "rechnungsempfaenger"
     for p in d["partners"]:
         if is_internal(p) or not p["active"]:
             rel[p["id"]] = False
+            continue
+        if alle:
+            rel[p["id"]] = True
             continue
         has_inv = p["id"] in d["inv"]
         if p["parent_id"]:
@@ -370,6 +374,7 @@ def _build_rows(d: dict, cid: int) -> list[dict]:
                 rel[cp] = True
 
     dup = _duplicates(d, P, is_internal)
+    mass = _mass_changes(d)
     rows = []
     kab = config.KONTROLLE_AB
     for p in d["partners"]:
@@ -383,6 +388,8 @@ def _build_rows(d: dict, cid: int) -> list[dict]:
         r["adresstyp"] = p["type"] or ""
         r["zugehoeriges_unternehmen"] = (P[p["parent_id"]]["name"] if p["parent_id"] in P else "") or ""
         r["rechnungs_unternehmen"] = cp["name"] or ""
+        r["rechnungs_unternehmen_id"] = cp["id"]
+        r["ist_rechnungsunternehmen"] = "ja" if is_cp else "nein"
         r["kundenart"] = _kundenart(cp)
         r["referenz"] = p["ref"] or ""
         r["anrede"] = p["title"] or ""
@@ -453,7 +460,7 @@ def _build_rows(d: dict, cid: int) -> list[dict]:
         r["anzahl_aenderungen"] = len(tr)
         r["letzte_aenderungen"] = "\n".join(_change_line(t, uname) for t in reversed(tr[-5:]))
 
-        r.update(_kontrolle(p, tr, d["notes"].get(p["id"], []), uname, kab))
+        r.update(_kontrolle(p, tr, d["notes"].get(p["id"], []), uname, kab, mass))
         r["rechnungsrelevant"] = "ja" if rel.get(p["id"]) else "nein"
         r.update(_pruefen(p, cp, is_cp, r, send, eas, ep, fmt, herkunft, gln_name, barcode))
         r.update(dup.get(p["id"], {}))
@@ -467,17 +474,39 @@ def _change_line(t, uname) -> str:
 
 
 # =================================================================== Vier-Augen-Kontrolle
-def _kontrolle(p, tracking, notes, uname, kab) -> dict:
-    """Änderungen (Verlauf + letzte Speicherung) gegen Prüfnotizen #geprüft / #falsch abgleichen."""
+def _minute(when):
+    return when.replace(second=0, microsecond=0)
+
+
+def _mass_changes(d) -> set:
+    """(Benutzer, Minute) mit mehr als MASSEN_GRENZE geänderten Kontakten = Import/Migration/Serveraktion."""
+    cnt = defaultdict(set)
+    for p in d["partners"]:
+        for when, uid in ((p["create_date"], p["create_uid"]), (p["write_date"], p["write_uid"])):
+            if when and uid:
+                cnt[(uid, _minute(when))].add(p["id"])
+    for pid, tl in d["tracking"].items():
+        for t in tl:
+            if t["date"] and t["create_uid"]:
+                cnt[(t["create_uid"], _minute(t["date"]))].add(pid)
+    return {k for k, ids in cnt.items() if len(ids) > config.MASSEN_GRENZE}
+
+
+def _kontrolle(p, tracking, notes, uname, kab, mass=frozenset()) -> dict:
+    """Änderungen (Verlauf + letzte Speicherung) gegen Prüfnotizen #geprüft / #falsch abgleichen.
+    Nicht gezählt: Änderungen durch Odoo selbst (Benutzer 1) und Massenänderungen."""
     ab = datetime.fromisoformat(kab)
+
+    def human(when, uid):
+        return when and when >= ab and uid and uid != 1 and (uid, _minute(when)) not in mass
     events = []  # (zeit, art, wer, daten)
     for t in tracking:
-        if t["date"] and t["date"] >= ab and t["create_uid"] and t["create_uid"] != 1:
+        if human(t["date"], t["create_uid"]):
             events.append((t["date"], 0, uname(t["create_uid"]), t))
     # Felder ohne Verlauf (Format, Versand, Referenz, Peppol …) zeigen sich nur in write_date
     # (auf Sekunden gekürzt wie mail_message.date, sonst wirkt eine Prüfnotiz aus derselben Sekunde "zu früh")
     for when, uid in ((p["create_date"], p["create_uid"]), (p["write_date"], p["write_uid"])):
-        if when and when >= ab and uid and uid != 1:
+        if human(when, uid):
             events.append((when.replace(microsecond=0), 0, uname(uid), None))
     if not events:
         return {}
@@ -582,6 +611,18 @@ def _pruefen(p, cp, is_cp, r, send, eas, ep, fmt, herkunft, gln_name, barcode) -
         err.append(C.F_LAND)
     # E-Mail (bei Peppol-Versand nicht nötig)
     mp = C.mail_problem(p["email"])
+    if not is_cp:
+        # Ansprechpartner/Lieferadresse: E-Mail nur Pflicht, wenn hierhin Rechnungen gehen.
+        # Eine eingetragene, aber kaputte Adresse wird immer gemeldet.
+        if mp and (mp != C.F_MAIL_FEHLT or p["type"] == "invoice" or r["rechnungen_anzahl"]) \
+                and not (send == "peppol" and mp == C.F_MAIL_FEHLT):
+            err.append(mp)
+        # Format, Referenz, Peppol-ID, USt-IdNr. nimmt Odoo vom Unternehmen -> dort geprüft, nicht hier.
+        # Ob das Unternehmen bereit ist, ergänzt die Seite selbst ("Unternehmen: E-Rechnung noch nicht bereit").
+        out["e_rechnung_fehler"] = "; ".join(dict.fromkeys(err))
+        out["e_rechnung_hinweise"] = ""
+        out["e_rechnung_bereit"] = "nein" if err else "ja"
+        return out
     if mp and not (send == "peppol" and mp == C.F_MAIL_FEHLT):
         err.append(mp)
     # USt-IdNr.

@@ -72,9 +72,15 @@ muss `"nur_lesend": true` zeigen.
 Format, Käuferreferenz und Peppol-ID liest Odoo immer vom übergeordneten **Unternehmen**.
 Deshalb gelten diese Werte auch bei Ansprechpartnern und Rechnungsadressen.
 
-**Was wird geprüft?** Kunden-Unternehmen, Einzelkontakte, Rechnungsadressen und alle
-Unterkontakte, die schon Rechnungen bekommen haben. Nicht geprüft werden die eigenen Firmen,
-interne Benutzer, Mitarbeiter und reine Lieferanten.
+**Was wird geprüft?** Alle aktiven Kontakte außer den eigenen Firmen, internen Benutzern und
+Mitarbeitern (`PRUEF_UMFANG=alle`). Ansprechpartner und Adressen werden nur mit ihren eigenen
+Angaben geprüft (Adresse, E-Mail). Format, Käuferreferenz, Peppol-ID und USt-IdNr. nimmt Odoo vom
+Unternehmen, deshalb stehen diese Fehler nur beim Unternehmen. Solange das Unternehmen nicht bereit
+ist, gilt das auch für seine Ansprechpartner („Unternehmen: E-Rechnung noch nicht bereit“). Diese
+Kontakte erscheinen aber nicht in der Fehlerliste, weil dort nichts zu tun ist.
+
+**Vier-Augen-Kontrolle:** Massenänderungen zählen nicht, also wenn eine Person in derselben Minute
+mehr als `MASSEN_GRENZE` Kontakte geändert hat (Import, Migration auf Odoo 18, Serveraktion).
 
 Geprüft wird wie in Odoo: USt-IdNr. mit `python-stdnum` (gleiche Bibliothek wie Odoo), GLN mit
 GS1-Prüfziffer, Leitweg-ID mit Prüfziffer nach ISO 7064 MOD 97-10.
@@ -88,6 +94,8 @@ GS1-Prüfziffer, Leitweg-ID mit Prüfziffer nach ISO 7064 MOD 97-10.
 | `ODOO_COMPANY_ID` | Firma für firmenabhängige Felder (leer = erste deutsche Firma) |
 | `KONTROLLE_AB` | Vier-Augen-Kontrolle für Änderungen ab diesem Datum |
 | `INCLUDE_INACTIVE` | archivierte Kontakte mitladen |
+| `PRUEF_UMFANG` | `alle` (Standard) oder `rechnungsempfaenger` |
+| `MASSEN_GRENZE` | ab wie vielen Kontakten pro Person und Minute eine Änderung als Massenänderung gilt (Standard 30) |
 | `CACHE_SECONDS` | wie lange ein Ergebnis wiederverwendet wird |
 | `APP_USER`, `APP_PASSWORD` | Passwortschutz der Seite |
 | `APP_PORT` | Port auf dem Server |
