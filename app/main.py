@@ -28,7 +28,7 @@ _lock = threading.Lock()
 @app.middleware("http")
 async def basic_auth(request: Request, call_next):
     """Optionaler Passwortschutz (APP_USER / APP_PASSWORD). /health bleibt offen."""
-    if config.APP_USER and config.APP_PASSWORD and request.url.path != "/health":
+    if config.APP_USER and config.APP_PASSWORD and not request.url.path.rstrip("/").endswith("/health"):
         ok = False
         h = request.headers.get("authorization", "")
         if h.lower().startswith("basic "):
@@ -57,13 +57,11 @@ def get_data(refresh: bool = False) -> dict:
         return data
 
 
-@app.get("/")
 def index():
     return FileResponse(STATIC / "index.html", media_type="text/html; charset=utf-8",
                         headers={"Cache-Control": "no-cache"})
 
 
-@app.get("/api/kontakte")
 def kontakte(refresh: int = 0):
     try:
         data = get_data(bool(refresh))
@@ -73,7 +71,6 @@ def kontakte(refresh: int = 0):
     return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
 
-@app.get("/health")
 def health():
     try:
         with odoo_db.connect() as conn, conn.cursor() as cur:
@@ -82,3 +79,17 @@ def health():
         return {"status": "ok", "datenbank": config.PGDATABASE, "nur_lesend": r["ro"] == "on"}
     except Exception as e:
         return JSONResponse({"status": "fehler", "fehler": str(e)}, status_code=503)
+
+
+@app.get("/{pfad:path}")
+def route(pfad: str, refresh: int = 0):
+    """Jede Adresse funktioniert: auch /index.html, der alte Dateiname und Unterpfade hinter
+    einem Reverse-Proxy (z. B. /erechnung/api/kontakte), ohne extra Einstellung."""
+    p = pfad.rstrip("/")
+    if p == "api/kontakte" or p.endswith("/api/kontakte"):
+        return kontakte(refresh)
+    if p == "health" or p.endswith("/health"):
+        return health()
+    if p == "favicon.ico" or p.endswith("/favicon.ico"):
+        return Response(status_code=204)
+    return index()

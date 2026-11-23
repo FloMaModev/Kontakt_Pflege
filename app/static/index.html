@@ -756,7 +756,10 @@
   var refresh = /[?&]neu=1/.test(location.search);
   if (refresh) history.replaceState(null, '', location.pathname + location.hash);
   if (refresh) msg.firstChild.textContent = 'Lese Kontakte neu aus der Odoo-Datenbank …';
-  fetch('api/kontakte' + (refresh ? '?refresh=1' : ''), {credentials: 'same-origin', cache: 'no-store'})
+  // Basis-Pfad der Seite (funktioniert auch hinter einem Proxy unter z. B. /erechnung ohne Schrägstrich)
+  var base = location.pathname;
+  if (!/\/$/.test(base)) base = /\.[a-z0-9]+$/i.test(base) ? base.replace(/[^\/]*$/, '') : base + '/';
+  fetch(base + 'api/kontakte' + (refresh ? '?refresh=1' : ''), {credentials: 'same-origin', cache: 'no-store'})
     .then(function (r) { return r.json().catch(function () { return {error: 'Antwort ' + r.status + ' ' + r.statusText}; })
       .then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ('Antwort ' + r.status)); return j; }); })
     .then(function (j) {
@@ -770,7 +773,7 @@
       box.classList.add('err');
       msg.innerHTML = '<h2 style="margin:0 0 8px;color:var(--err)">Daten konnten nicht aus Odoo gelesen werden</h2>' +
         '<pre>' + e(err && err.message || err) + '</pre>' +
-        '<p class="sub">Läuft die Datenbank? Stimmen PGHOST, PGDATABASE, PGUSER und PGPASSWORD im Docker-Dienst? Status: <a href="health" target="_blank">health</a></p>' +
+        '<p class="sub">Läuft die Datenbank? Stimmen PGHOST, PGDATABASE, PGUSER und PGPASSWORD im Docker-Dienst? Status: <a href="' + base + 'health" target="_blank">health</a></p>' +
         '<button class="btn primary" onclick="location.reload()">Erneut versuchen</button>';
     });
 })();
