@@ -487,6 +487,14 @@
   .duptab thead th.keep{background:var(--ok-bg)}
   .duptab td.same,.dlg.same{background:#e7f6ef} .duptab td.diff,.dlg.diff{background:#fff4e0} .duptab td.empty{color:var(--muted)}
   .dlg{padding:0 6px;border-radius:4px}
+  /* Auswertung je Mitarbeiter */
+  .pbar2{display:flex;flex:0 0 120px;height:10px;border-radius:5px;overflow:hidden;background:var(--grey-bg)} .pbar2 i{display:block;height:100%}
+  .pnum,.pname{border:none;background:none;padding:2px 6px;border-radius:6px;cursor:pointer;font:inherit;color:var(--info);text-decoration:underline dotted}
+  .pnum:hover,.pname:hover{background:var(--info-bg)} .pname{font-weight:700;color:var(--ink);text-decoration:none;padding-left:0}
+  .pnum.ok{color:var(--ok)} .pnum.err{color:var(--err);font-weight:700} .pnum.warn{color:var(--warn)}
+  .legend span{display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:12px} .legend span i{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .mine{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--info);border-radius:12px;padding:14px 18px;margin:14px 0}
+  #wMine.on{color:#fff}
   header.top .meta .reload{padding:2px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle}
   #loadOverlay{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
   #loadOverlay .ldbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 32px;max-width:560px;text-align:center;box-shadow:0 8px 30px rgba(16,24,40,.08)}
@@ -551,6 +559,7 @@
       <div class="wtools">
         <input type="search" id="wQ" placeholder="Kontakt suchen …   ( / )">
         <select id="wMe" title="Wer bin ich? Wichtig für die Vier-Augen-Kontrolle"></select>
+        <button class="btn small" id="wMine" hidden title="Nur Kunden zeigen, bei denen ich Vertriebsmitarbeiter bin">👤 Meine Kunden</button>
         <button class="btn small" id="wFiltBtn" title="Weitere Filter und Einstellungen">⚙ Filter <span id="wFiltN"></span></button>
       </div>
     </div>
@@ -672,10 +681,9 @@
       <div class="panel"><h2>Hinweise nach Thema</h2><p class="sub">gelb = sollte verbessert werden</p><div id="hints"></div></div>
       <div class="panel"><h2>Dubletten-Verdacht nach Grund</h2><p class="sub">doppelt angelegte Kontakte</p><div id="dups"></div></div>
       <div class="panel"><h2>E-Rechnungsformat / Kundenart / Versand</h2><p class="sub">nur Übersicht</p><div id="fmts"></div><div id="kinds" style="margin-top:10px"></div><div id="sends" style="margin-top:10px"></div></div>
-      <div class="panel"><h2>Offene Fehler je Vertriebsmitarbeiter</h2><p class="sub">zum Verteilen der Arbeit</p><div id="reps"></div></div>
       <div class="panel" style="grid-column:1/-1"><h2>Vier-Augen-Kontrolle je Mitarbeiter</h2><p class="sub">Wer hat geändert, und wie oft hat die Kontrolle einen Fehler gefunden? Gezählt wird der aktuelle Stand je Kontakt. Klick auf eine Zeile zeigt die offenen Kontrollen dieser Person.</p><div id="konStats"></div></div>
-      <div class="panel" style="grid-column:1/-1"><h2>Wer hat die Kontakte angelegt?</h2><p class="sub">alle geprüften, aktiven Kontakte · Klick auf eine Zeile öffnet die Arbeitsliste mit den Fehlern dieser Person · Klick auf eine Spalte sortiert</p>
-        <div class="bar-row" style="margin-bottom:8px"><span class="seg" id="byMode"><button data-bm="angelegt_von" class="on">angelegt von</button><button data-bm="geaendert_von">zuletzt geändert von</button></span>
+      <div class="panel" style="grid-column:1/-1"><h2>Kontakte je Mitarbeiter</h2><p class="sub">alle geprüften, aktiven Kontakte, auch die ohne Fehler · <b>Klick auf eine Zahl</b> zeigt genau diese Kontakte, Klick auf den Namen alle Kontakte der Person · Klick auf eine Spaltenüberschrift sortiert</p>
+        <div class="bar-row" style="margin-bottom:8px"><span class="seg" id="byMode"><button data-bm="vertriebsmitarbeiter" class="on">Vertriebsmitarbeiter</button><button data-bm="angelegt_von">angelegt von</button><button data-bm="geaendert_von">zuletzt geändert von</button></span>
           <select id="byAge"><option value="">alle Zeiträume</option><option value="30">angelegt in den letzten 30 Tagen</option><option value="90">angelegt in den letzten 90 Tagen</option><option value="365">angelegt im letzten Jahr</option></select></div>
         <div id="creators"></div></div>
     </div>
@@ -712,6 +720,7 @@
       <h2>So arbeiten Sie mit der Arbeitsliste</h2>
       <ol>
         <li>Oben auswählen, was bearbeitet wird (z. B. <b>Fehler</b>) und optional ein <b>Thema</b> oder Ihren <b>Vertriebsmitarbeiter</b>.</li>
+        <li><b>Nur die eigenen Kunden:</b> oben bei „Ich bin …“ den eigenen Namen wählen, dann erscheint der Knopf <b>„👤 Meine Kunden“</b>. Die Startseite zeigt dann auch eine Übersicht der eigenen Kunden.</li>
         <li>Links steht die Liste, die dringendsten Kontakte zuerst. Rechts sehen Sie, <b>was falsch ist, warum, und was zu tun ist</b>.</li>
         <li><b>In Odoo öffnen</b> klicken (oder Taste <kbd>O</kbd>), den Kontakt in Odoo korrigieren und speichern. Odoo öffnet sich immer im selben Tab.</li>
         <li>Zurück in dieser Seite <b>Erledigt</b> klicken (oder <kbd>E</kbd>). Der nächste Kontakt erscheint automatisch.</li>
@@ -985,6 +994,12 @@ const erklBlock = (list, cls) => list.map(t => { const e = erkl(t);
 
 const FIRMA_NB = 'Unternehmen: E-Rechnung noch nicht bereit';
 const ownErr = r => r._err.some(e => e !== FIRMA_NB);   // eigene Fehler (ohne „Unternehmen nicht bereit“)
+// Stand je Kontakt in einfachen Stufen (Auswertung, Filter „Stufe“)
+const STUFEN = [['fertig', '★ fertig', '#0b6b4a'], ['ja', 'bereit', '#3d63dd'], ['kontrolle', 'Kontrolle offen', '#e0a23a'],
+  ['fehler', 'eigene Fehler', '#d14343'], ['firma', 'Unternehmen fehlt noch', '#f2a7a7'], ['privat', 'Privatperson', '#9aa3b2']];
+const STUFE_TXT = Object.fromEntries(STUFEN.map(x => [x[0], x[1]]));
+const stufeOf = r => r.e_rechnung_bereit === 'nein' ? (ownErr(r) ? 'fehler' : 'firma') : r.e_rechnung_bereit;
+const BYF_TXT = {vertriebsmitarbeiter: 'Vertrieb', angelegt_von: 'Angelegt von', geaendert_von: 'Zuletzt geändert von'};
 const FEHLER = ['Unternehmen: E-Rechnung noch nicht bereit','GLN im Namen: als Peppol-ID „EAN-Standortcode“ eintragen','GLN im Namen: Prüfziffer falsch','Handelskunde mit GLN: Format muss „Deutschland (ZUGFeRD)“ sein','Letzte E-Rechnung: Peppol-Versand fehlgeschlagen','Kontrolle: als falsch gemeldet','Format nicht gewählt (steht auf „XML-Format“)','Falsches Format: nur „Deutschland (ZUGFeRD)“ oder „Deutschland (XRechnung)“','Straße fehlt','PLZ fehlt','Ort fehlt','Land fehlt','E-Mail fehlt','E-Mail ungültig','E-Mail enthält unsichtbare Zeichen (Leerzeichen/Zeilenumbruch)','Mehrere E-Mail-Adressen in einem Feld','USt-IdNr. fehlt (EU-Ausland)','USt-IdNr. Format ungültig','USt-IdNr. Prüfziffer falsch','Kein E-Rechnungsformat','XRechnung: Käuferreferenz BT-10 (Feld Referenz am Unternehmen) fehlt','B2G: Leitweg-ID fehlt (Peppol-Endpoint)','B2G: Leitweg-ID hat falsches Format','B2G: Leitweg-ID Prüfziffer falsch','Peppol-Art falsch: Leitweg-ID unter anderer Art eingetragen','B2G: Format muss XRechnung sein','Peppol: EAS/Endpoint fehlt','Peppol: Empfänger nicht verifiziert','Peppol: EAS 9958 ist veraltet','Peppol 9930: Endpoint ist keine gültige DE-USt-IdNr.','GLN: muss 13 Ziffern haben','GLN: Prüfziffer falsch'];
 const HINW = ['GLN im Namen: auch im Feld Barcode eintragen','USt-IdNr. fehlt (empfohlen)','Format nur Odoo-Vorschlag (nicht bewusst gesetzt)','Versandart nicht gesetzt (Standard)','GLN im Barcode: Prüfziffer falsch','GLN in Barcode und Peppol-Endpoint unterschiedlich','Leitweg-ID im Feld Referenz: Behörde? Peppol-Art „Leitweg-ID“ prüfen','Privatperson: E-Rechnung nicht erforderlich'];
 const DUPW = ['Kopie mit gleichem Namen','gleiche USt-IdNr.','gleiche IBAN','gleiche Peppol-ID','gleiche Referenz/Kundennr.','gleicher Name + PLZ','ähnlicher Name + PLZ','gleiche E-Mail','gleicher Name','gleiche Telefonnr.'];
@@ -1227,7 +1242,7 @@ const SCOPES = [
   ['konf', '↩ Von der Kontrolle zurück (falsch)', r => r._act && r._kon === 'falsch'],
   ['all',  'Alle geprüften Kontakte',  r => r._rel && r._act],
 ];
-const W = {scope:'dupS', topic:'', rep:'', art:'', cust:false, hideDone:true, q:'', list:[], sel:0, shown:150, by:null, byField:'angelegt_von'};
+const W = {scope:'dupS', topic:'', rep:'', art:'', cust:false, hideDone:true, q:'', list:[], sel:0, shown:150, by:null, byField:'angelegt_von', stufe:''};
 // Einstellungen + Arbeitsstand im Browser merken
 const LS = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch (e) { return d; } };
 const LSset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -1254,19 +1269,25 @@ function renderPills(){
 }
 function buildTopicSelect(){
   const f = scopeFn(), cnt = {};
-  for (const r of DATA) if (f(r) && (!W.rep || (r.vertriebsmitarbeiter || '') === W.rep) && (W.by === null || (r[W.byField] || '') === W.by)) topicsOf(r).forEach(t => cnt[t] = (cnt[t] || 0) + 1);
+  for (const r of DATA) if (f(r) && (!W.rep || (r.vertriebsmitarbeiter || '') === W.rep) && (W.by === null || (r[W.byField] || '') === W.by) && (!W.stufe || stufeOf(r) === W.stufe)) topicsOf(r).forEach(t => cnt[t] = (cnt[t] || 0) + 1);
   const arr = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
   $('wTopic').innerHTML = '<option value="">Alle Themen</option>' + arr.map(([t, n]) => `<option value="${esc(t)}">${esc(t)} (${n.toLocaleString('de-DE')})</option>`).join('');
   if (W.topic && !cnt[W.topic]) W.topic = '';
   $('wTopic').value = W.topic;
   renderPills();
   const total = arr.reduce((a, x) => a + x[1], 0);
-  $('wChips').innerHTML = (W.by !== null ? `<button class="tchip on" data-clearby="1" style="background:#5b3aa6;border-color:#5b3aa6" title="Filter entfernen">${W.byField === 'angelegt_von' ? 'Angelegt' : 'Zuletzt geändert'} von: ${esc(W.by || '(unbekannt)')} ✕</button>` : '') + `<button class="tchip${W.topic ? '' : ' on'}" data-topic="">Alle Themen</button>` +
+  $('wChips').innerHTML = (W.by !== null ? `<button class="tchip on" data-clearby="1" style="background:#5b3aa6;border-color:#5b3aa6" title="Filter entfernen">${esc(BYF_TXT[W.byField] || W.byField)}: ${esc(W.by || (W.byField === 'vertriebsmitarbeiter' ? '(keiner)' : '(unbekannt)'))} ✕</button>` : '') +
+    (W.stufe ? `<button class="tchip on" data-clearstufe="1" style="background:#5b3aa6;border-color:#5b3aa6" title="Filter entfernen">Stufe: ${esc(STUFE_TXT[W.stufe] || W.stufe)} ✕</button>` : '') +
+    (W.rep ? `<button class="tchip on" data-clearrep="1" style="background:#5b3aa6;border-color:#5b3aa6" title="Filter entfernen">Vertrieb: ${esc(W.rep)} ✕</button>` : '') + `<button class="tchip${W.topic ? '' : ' on'}" data-topic="">Alle Themen</button>` +
     arr.slice(0, 9).map(([t, n]) => `<button class="tchip${W.topic === t ? ' on' : ''}" data-topic="${esc(t)}" title="${erkl(t) ? tip(t) : esc(t)}">${esc(t.replace(' (Leerzeichen/Zeilenumbruch)', ''))}<span class="n">${n.toLocaleString('de-DE')}</span></button>`).join('');
 }
 $('wPills').addEventListener('click', e => { const b = e.target.closest('[data-scope]'); if (!b) return; W.scope = b.dataset.scope; W.topic = ''; $('wScope').value = W.scope; buildTopicSelect(); refreshWork(); });
 $('wFiltBtn').onclick = () => { $('wFilt').hidden = !$('wFilt').hidden; $('wFiltBtn').classList.toggle('on', !$('wFilt').hidden); };
-$('wChips').addEventListener('click', e => { if (e.target.closest('[data-clearby]')) { W.by = null; buildTopicSelect(); refreshWork(); return; } });
+$('wChips').addEventListener('click', e => {
+  if (e.target.closest('[data-clearby]')) { W.by = null; buildTopicSelect(); refreshWork(); return; }
+  if (e.target.closest('[data-clearstufe]')) { W.stufe = ''; buildTopicSelect(); refreshWork(); return; }
+  if (e.target.closest('[data-clearrep]')) { W.rep = ''; $('wRep').value = ''; updateMine(); buildTopicSelect(); refreshWork(); return; }
+});
 $('wChips').addEventListener('click', e => { const b = e.target.closest('[data-topic]'); if (!b) return; W.topic = b.dataset.topic; $('wTopic').value = W.topic;
   document.querySelectorAll('#wChips .tchip').forEach(x => x.classList.toggle('on', x.dataset.topic === W.topic)); refreshWork(); });
 (function buildRepArt(){
@@ -1284,6 +1305,7 @@ function computeQueue(keepId){
     if (W.topic && !topicsOf(r).includes(W.topic)) continue;
     if (W.rep && (r.vertriebsmitarbeiter || '') !== W.rep) continue;
     if (W.by !== null && (r[W.byField] || '') !== W.by) continue;
+    if (W.stufe && stufeOf(r) !== W.stufe) continue;
     if (W.art && (r.kundenart || '') !== W.art) continue;
     if (W.cust && !r._cust) continue;
     if (W.inv && !r._inv) continue;
@@ -2037,12 +2059,13 @@ function dupBanner(){
     <button class="btn" data-act="todup" style="border-color:#8a63d2;color:#5b3aa6">Zu den Dubletten ①</button></div></div>` : '';
 }
 function clearWorkFilters(){
-  W.topic = ''; W.rep = ''; W.art = ''; W.cust = false; W.q = ''; W.by = null;
+  W.topic = ''; W.rep = ''; W.art = ''; W.cust = false; W.q = ''; W.by = null; W.stufe = '';
   $('wRep').value = ''; $('wArt').value = ''; $('wCust').checked = false; $('wQ').value = ''; $('wTopic').value = '';
 }
 function activeFilters(){
   const a = [];
-  if (W.by !== null) a.push((W.byField === 'angelegt_von' ? 'Angelegt von: ' : 'Zuletzt geändert von: ') + (W.by || '(unbekannt)'));
+  if (W.by !== null) a.push((BYF_TXT[W.byField] || W.byField) + ': ' + (W.by || '(niemand)'));
+  if (W.stufe) a.push('Stufe: ' + (STUFE_TXT[W.stufe] || W.stufe));
   if (W.rep) a.push('Vertriebsmitarbeiter: ' + W.rep);
   if (W.topic) a.push('Thema: ' + W.topic);
   if (W.art) a.push('Kundenart: ' + W.art);
@@ -2102,10 +2125,16 @@ function undoDone(){
 }
 
 /* ---------- Bedienung Arbeitsliste ---------- */
+function updateMine(){
+  const b = $('wMine'); if (!b) return;
+  const isRep = !!ME && DATA.some(r => r.vertriebsmitarbeiter === ME);
+  b.hidden = !isRep; b.classList.toggle('on', isRep && W.rep === ME); b.classList.toggle('primary', isRep && W.rep === ME);
+}
+$('wMine').onclick = () => { W.rep = W.rep === ME ? '' : ME; $('wRep').value = W.rep; updateMine(); buildTopicSelect(); refreshWork(); toast(W.rep ? 'Nur deine Kunden' : 'Alle Kunden'); };
 function refreshWork(keep){ computeQueue(keep); renderQueue(); const s = $('qlist').parentElement; if (!keep) s.scrollTop = 0; saveState(); }
 $('wScope').onchange = e => { W.scope = e.target.value; W.topic = ''; buildTopicSelect(); refreshWork(); };
 $('wTopic').onchange = e => { W.topic = e.target.value; refreshWork(); };
-$('wRep').onchange = e => { W.rep = e.target.value; buildTopicSelect(); refreshWork(); };
+$('wRep').onchange = e => { W.rep = e.target.value; updateMine(); buildTopicSelect(); refreshWork(); };
 $('wArt').onchange = e => { W.art = e.target.value; refreshWork(); };
 $('wCust').onchange = e => { W.cust = e.target.checked; refreshWork(); };
 $('wInv').onchange = e => { W.inv = e.target.checked; refreshWork(); };
@@ -2494,6 +2523,24 @@ function ring(p){
   return `<svg viewBox="0 0 120 120" class="ring"><circle cx="60" cy="60" r="${R0}" class="rbg"/><circle cx="60" cy="60" r="${R0}" class="rfg" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${o.toFixed(1)}"/>
     <text x="60" y="58" class="rt">${Math.round(p * 100)} %</text><text x="60" y="78" class="rs">fertig</text></svg>`;
 }
+function meineKarte(){
+  if (!ME) return '';
+  const mine = DATA.filter(r => r._rel && r._act && r.vertriebsmitarbeiter === ME);
+  if (!mine.length) return '';
+  const c = {}; mine.forEach(r => { const st = stufeOf(r); c[st] = (c[st] || 0) + 1; });
+  const ok = mine.length - (c.fehler || 0);
+  return `<div class="mine"><div><b>👤 Deine Kunden</b> (du bist Vertriebsmitarbeiter): <b>${mine.length.toLocaleString('de-DE')}</b> Kontakte,
+      <b>${Math.round(ok / mine.length * 100)} %</b> ohne eigene Fehler</div>
+    <div class="legend" style="margin:6px 0">${STUFEN.map(([k, l, col]) => c[k] ? `<button data-mine="${k}"><i style="background:${col}"></i>${l} <b>${c[k].toLocaleString('de-DE')}</b></button>` : '').join('')}</div>
+    ${c.fehler ? `<button class="btn primary" data-mine="fehler">Meine Fehler beheben (${c.fehler.toLocaleString('de-DE')}) →</button>` : '<span class="badge b-ok">✓ Bei deinen Kunden gibt es keine eigenen Fehler</span>'}
+    <button class="btn" data-mine="">Alle meine Kunden ansehen</button></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-mine]'); if (!b) return;
+  clearWorkFilters(); W.rep = ME; $('wRep').value = ME; updateMine();
+  const st = b.dataset.mine; W.stufe = st && st !== 'fehler' ? st : '';
+  goWork(st === 'fehler' ? 'err' : 'all', '', ME);
+});
 function renderStart(){
   const rel = DATA.filter(r => r._act && r._rel), firm = rel.filter(r => r.e_rechnung_bereit !== 'privat');
   const n = k => firm.filter(r => r.e_rechnung_bereit === k).length, tot = firm.length || 1;
@@ -2513,7 +2560,7 @@ function renderStart(){
         <div class="hmeta">Heute erledigt: <b>${today}</b> · Datenstand ${esc(gen || '–')}${old ? ' <span class="badge b-warn">nicht von heute: bitte „↻ Neu laden“</span>' : ''}</div>
       </div>
       <div class="hero-r">${ring(n('fertig') / tot)}</div>
-    </div>
+    </div>${meineKarte()}
     <h2 class="sh">Was steht an?</h2>
     <div class="tasks">` +
     tc.map(([[k, ic, title, txt], [c, inv]], i) => {
@@ -2543,7 +2590,7 @@ document.addEventListener('click', e => {
 /* =====================================================================
    AUSWERTUNG
    ===================================================================== */
-const CR = {field:'angelegt_von', age:'', sort:'err', desc:true};
+const CR = {field:'vertriebsmitarbeiter', age:'', sort:'n', desc:true};
 function showAllBereit(v){ showTab('all'); setTimeout(() => { $('fBereit').value = v; $('fBereit').dispatchEvent(new Event('change')); }, 0); }
 function renderStand(rel){
   const S = [['fertig', '★ Fertig: alles ausgefüllt und kontrolliert', '#0b6b4a'], ['ja', '✓ Pflichtangaben da, aber noch nicht alles ausgefüllt', '#3559c7'],
@@ -2575,29 +2622,40 @@ function renderCreators(){
     if (!r._rel || !r._act) return;
     if (days) { const d = r.angelegt_am ? new Date(String(r.angelegt_am).replace(' ', 'T')) : null; if (!d || isNaN(d) || (now - d.getTime()) / 86400000 > days) return; }
     const who = r[CR.field] || '';
-    const x = rows[who] || (rows[who] = {who, n:0, err:0, ok:0, fmt:0, top:{}});
-    x.n++; if (r.e_rechnung_bereit === 'ja') x.ok++;
-    if (ownErr(r)) { x.err++; r._err.forEach(t => x.top[t] = (x.top[t] || 0) + 1); }
-    if (r._err.includes('Format nicht gewählt (steht auf „XML-Format“)') || r._err.includes('Kein E-Rechnungsformat')) x.fmt++;
+    const x = rows[who] || (rows[who] = {who, n:0, top:{}, s:{}});
+    x.n++; const st = stufeOf(r); x.s[st] = (x.s[st] || 0) + 1;
+    if (ownErr(r)) r._err.forEach(t => { if (t !== FIRMA_NB) x.top[t] = (x.top[t] || 0) + 1; });
   });
-  const arr = Object.values(rows).map(x => Object.assign(x, {pct: x.n ? x.err / x.n : 0, topT: Object.entries(x.top).sort((a, b) => b[1] - a[1])[0]}));
-  const key = {who: x => x.who.toLowerCase(), n: x => x.n, err: x => x.err, pct: x => x.pct, ok: x => x.ok, fmt: x => x.fmt}[CR.sort];
+  const arr = Object.values(rows).map(x => Object.assign(x, {
+    ok: x.n - (x.s.fehler || 0), err: x.s.fehler || 0,
+    topT: Object.entries(x.top).sort((a, b) => b[1] - a[1])[0]}));
+  arr.forEach(x => { x.pct = x.n ? x.ok / x.n : 0; STUFEN.forEach(([k]) => x[k] = x.s[k] || 0); });
+  const key = CR.sort === 'who' ? (x => x.who.toLowerCase()) : (x => x[CR.sort] || 0);
   arr.sort((a, b) => { const va = key(a), vb = key(b); const c = typeof va === 'string' ? COLL.compare(va, vb) : va - vb; return CR.desc ? -c : c; });
-  const th = (k, l) => `<th data-cs="${k}" class="${CR.sort === k ? 'sorted' + (CR.desc ? ' desc' : '') : ''}" style="cursor:pointer">${l}</th>`;
-  const tot = arr.reduce((a, x) => (a.n += x.n, a.err += x.err, a), {n:0, err:0});
-  $('creators').innerHTML = arr.length ? `<table class="req crt"><thead><tr>${th('who', 'Person')}${th('n', 'Kontakte')}${th('err', 'mit Fehlern')}${th('pct', 'Anteil mit Fehlern')}${th('fmt', 'davon Format nicht gewählt')}${th('ok', 'E-Rechnung bereit')}<th>häufigster Fehler</th></tr></thead><tbody>` +
-    arr.map(x => `<tr data-who="${esc(x.who)}"><td><b>${x.who ? esc(x.who) : '<span class="sub">(unbekannt)</span>'}</b></td><td>${x.n.toLocaleString('de-DE')}</td>
-      <td>${x.err ? `<span class="badge b-err">${x.err.toLocaleString('de-DE')}</span>` : '<span class="sub">0</span>'}</td>
-      <td><div style="display:flex;align-items:center;gap:8px"><span class="track" style="flex:0 0 90px;height:8px;background:var(--grey-bg);border-radius:4px;overflow:hidden;display:block"><span style="display:block;height:100%;width:${(x.pct * 100).toFixed(1)}%;background:${x.pct > .5 ? 'var(--err)' : x.pct > .2 ? '#e0a23a' : 'var(--ok)'}"></span></span>${Math.round(x.pct * 100)} %</div></td>
-      <td>${x.fmt ? x.fmt.toLocaleString('de-DE') : '<span class="sub">0</span>'}</td><td>${x.ok.toLocaleString('de-DE')}</td>
+  const th = (k, l, t) => `<th data-cs="${k}" class="${CR.sort === k ? 'sorted' + (CR.desc ? ' desc' : '') : ''}" style="cursor:pointer" title="${esc(t || '')}">${l}</th>`;
+  const num = (x, k, cls) => x[k] ? `<button class="pnum ${cls || ''}" data-pwho="${esc(x.who)}" data-pst="${k}" title="Diese Kontakte anzeigen">${x[k].toLocaleString('de-DE')}</button>` : '<span class="sub">0</span>';
+  const bar = x => `<span class="pbar2" title="${STUFEN.map(([k, l]) => x[k] ? l + ': ' + x[k] : '').filter(Boolean).join(' · ')}">${STUFEN.map(([k, , c]) => x[k] ? `<i style="width:${(x[k] / x.n * 100).toFixed(1)}%;background:${c}"></i>` : '').join('')}</span>`;
+  const tot = {who: 'Summe', n: 0}; STUFEN.forEach(([k]) => tot[k] = 0);
+  arr.forEach(x => { tot.n += x.n; STUFEN.forEach(([k]) => tot[k] += x[k]); });
+  tot.ok = tot.n - tot.fehler;
+  $('creators').innerHTML = arr.length ? `<div class="legend" style="margin:0 0 8px">${STUFEN.map(([k, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>
+    <div class="dupwrap"><table class="req crt"><thead><tr>${th('who', 'Person')}${th('n', 'Kontakte')}${th('pct', 'ohne eigene Fehler', 'beim Kontakt selbst ist nichts zu korrigieren')}${th('fertig', '★ fertig')}${th('ja', 'bereit')}${th('kontrolle', 'Kontrolle offen')}${th('fehler', 'eigene Fehler', 'beim Kontakt selbst ist etwas zu korrigieren')}${th('firma', 'Unternehmen fehlt noch', 'Ansprechpartner/Adresse ist in Ordnung, beim Unternehmen fehlt noch etwas')}${th('privat', 'privat')}<th>häufigster Fehler</th></tr></thead><tbody>` +
+    arr.map(x => `<tr><td><button class="pname" data-pwho="${esc(x.who)}" data-pst="" title="Alle Kontakte dieser Person anzeigen">${x.who ? esc(x.who) : `<span class="sub">${CR.field === 'vertriebsmitarbeiter' ? '(kein Vertriebsmitarbeiter)' : '(unbekannt)'}</span>`}</button>${!x.fehler ? ' <span class="badge b-ok" title="keine eigenen Fehler">✓</span>' : ''}</td>
+      <td>${num(x, 'n')}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">${bar(x)}<b style="min-width:3em">${Math.round(x.pct * 100)} %</b></div></td>
+      <td>${num(x, 'fertig', 'ok')}</td><td>${num(x, 'ja')}</td><td>${num(x, 'kontrolle', 'warn')}</td>
+      <td>${num(x, 'fehler', 'err')}</td><td>${num(x, 'firma')}</td><td>${num(x, 'privat')}</td>
       <td class="sub">${x.topT ? esc(x.topT[0]) + ' (' + x.topT[1].toLocaleString('de-DE') + ')' : ''}</td></tr>`).join('') +
-    `<tr style="font-weight:700"><td>Summe</td><td>${tot.n.toLocaleString('de-DE')}</td><td>${tot.err.toLocaleString('de-DE')}</td><td>${tot.n ? Math.round(tot.err / tot.n * 100) : 0} %</td><td colspan="3"></td></tr></tbody></table>`
+    `<tr style="font-weight:700"><td>Summe</td><td>${tot.n.toLocaleString('de-DE')}</td><td>${tot.n ? Math.round(tot.ok / tot.n * 100) : 0} %</td>${['fertig','ja','kontrolle','fehler','firma','privat'].map(k => `<td>${tot[k].toLocaleString('de-DE')}</td>`).join('')}<td></td></tr></tbody></table></div>`
     : '<div class="sub">keine Kontakte in diesem Zeitraum</div>';
 }
 document.addEventListener('click', e => {
   const bm = e.target.closest('[data-bm]'); if (bm) { CR.field = bm.dataset.bm; document.querySelectorAll('#byMode button').forEach(b => b.classList.toggle('on', b === bm)); renderCreators(); return; }
   const cs = e.target.closest('[data-cs]'); if (cs) { if (CR.sort === cs.dataset.cs) CR.desc = !CR.desc; else { CR.sort = cs.dataset.cs; CR.desc = cs.dataset.cs !== 'who'; } renderCreators(); return; }
-  const tr = e.target.closest('#creators tr[data-who]'); if (tr) { clearWorkFilters(); W.by = tr.dataset.who; W.byField = CR.field; goWork('err', '', ''); }
+  const pb = e.target.closest('#creators [data-pwho]');
+  if (pb) { clearWorkFilters(); W.by = pb.dataset.pwho; W.byField = CR.field; const st = pb.dataset.pst;
+    W.stufe = STUFE_TXT[st] ? st : ''; W.hideDone = false; $('wHideDone').checked = false;
+    goWork(W.stufe === 'fehler' ? 'err' : 'all', '', ''); }
 });
 document.addEventListener('change', e => { if (e.target.id === 'byAge') { CR.age = e.target.value; renderCreators(); } });
 function goWork(scope, topic, rep){
@@ -2641,7 +2699,6 @@ function renderStats(){
   act.forEach(r => r._dupWhy.forEach(t => DW[t] = (DW[t] || 0) + 1));
   bars('errs', E, 'err', t => goWork('err', t), 30); bars('hints', H, 'warn', t => goWork('hint', t), 30); bars('dups', DW, 'dup', t => goWork('dup', t));
   bars('fmts', F, '', null); bars('kinds', KA, '', null); bars('sends', SE, '', null);
-  bars('reps', RP, 'err', t => goWork('err', '', t === '(kein Vertriebsmitarbeiter)' ? '' : t), 25);
   renderCreators(); renderKonStats(); renderStand(rel);
 }
 
@@ -2666,8 +2723,8 @@ $('wRep').value = W.rep; $('wArt').value = W.art; $('wCust').checked = W.cust; $
   ['OdooBot', 'Administrator', 'System', 'nextpim'].forEach(n => names.delete(n));
   if (ME) names.add(ME);
   $('wMe').innerHTML = '<option value="">Ich bin … (bitte wählen)</option>' + [...names].sort((a, b) => COLL.compare(a, b)).map(n => `<option>${esc(n)}</option>`).join('');
-  $('wMe').value = ME;
-  $('wMe').onchange = e => { ME = e.target.value; LSset('odoo18_ich', ME); toast(ME ? 'Hallo ' + ME + '! Eigene Änderungen werden dir nicht zum Prüfen gezeigt.' : 'Name entfernt'); const c = W.list[W.sel]; refreshWork(c && c.odoo_id); };
+  $('wMe').value = ME; setTimeout(updateMine);
+  $('wMe').onchange = e => { ME = e.target.value; LSset('odoo18_ich', ME); setTimeout(updateMine); toast(ME ? 'Hallo ' + ME + '! Eigene Änderungen werden dir nicht zum Prüfen gezeigt.' : 'Name entfernt'); const c = W.list[W.sel]; refreshWork(c && c.odoo_id); };
 })();
 buildScopeSelect(); buildTopicSelect(); computeQueue(SAVED && SAVED.sel != null ? SAVED.sel : undefined); renderQueue();
 if (W.sel) select(W.sel);

@@ -49,6 +49,12 @@ muss `"nur_lesend": true` zeigen.
 * **Lesen ist dreifach abgesichert:** Datenbankbenutzer nur mit `SELECT`, Sitzung mit
   `default_transaction_read_only`, jede Abfrage als `READ ONLY`-Transaktion. Zusätzlich ist das
   Dateisystem des Containers schreibgeschützt, und der Dienst läuft ohne Root-Rechte.
+* **Meine Kunden:** Wer oben „Ich bin …“ wählt und Vertriebsmitarbeiter ist, bekommt den Knopf
+  „👤 Meine Kunden“ und auf der Startseite eine eigene Übersicht mit „Meine Fehler beheben“.
+* **Auswertung „Kontakte je Mitarbeiter“** (nach Vertriebsmitarbeiter, angelegt von oder zuletzt
+  geändert von): je Person alle Stufen (★ fertig, bereit, Kontrolle offen, eigene Fehler,
+  Unternehmen fehlt noch, privat), auch Personen ohne Fehler. Jede Zahl ist klickbar und zeigt genau
+  diese Kontakte.
 * **Passwortschutz** über `APP_USER`/`APP_PASSWORD`. Die Seite zeigt Kundendaten, daher bitte setzen.
 * **Ladeanzeige und klare Fehlermeldung**, wenn die Datenbank nicht erreichbar ist.
 * Alle Texte, die auf „Hop-Pipeline neu laufen lassen“ verwiesen, zeigen jetzt auf „↻ Neu laden“.
