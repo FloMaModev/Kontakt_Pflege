@@ -14,10 +14,15 @@ services:
       - "${APP_PORT:-8080}:8080"
     read_only: true            # Container-Dateisystem schreibgeschützt
     tmpfs: [/tmp]
+    volumes:
+      - cache:/cache           # Cache der Abfrage: nach Neustart kein erneutes Lesen der Datenbank
     security_opt: ["no-new-privileges:true"]
     # Läuft die Odoo-Datenbank in einem anderen Compose-Projekt, dessen Netz hier eintragen
     # (Name siehe `docker network ls`) und PGHOST auf den Dienstnamen der Datenbank setzen:
     # networks: [odoo]
+
+volumes:
+  cache:
 
 # networks:
 #   odoo:

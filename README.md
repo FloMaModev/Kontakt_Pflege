@@ -39,14 +39,13 @@ einkommentieren und den Netzwerknamen eintragen (`docker network ls`).
 docker compose up -d --build
 ```
 
-Danach die Seite unter `http://<server>:8080` öffnen. Verbindungstest: `http://<server>:8080/health`
+Danach die Seite unter `http://<server>:8080` öffnen. Verbindungstest: `http://<server>:8080/health?db=1`
 muss `"nur_lesend": true` zeigen.
 
 ## Was ist neu gegenüber der Version mit Hop-Pipeline?
 
-* **Live-Daten:** kein Export und keine Datei. Oben rechts stehen „● live“, der Datenstand und der
-  Knopf **„↻ Neu laden“** (liest sofort neu aus Odoo). Ohne Klick wird ein Ergebnis höchstens
-  `CACHE_SECONDS` lang wiederverwendet.
+* **Daten direkt aus Odoo, mit Cache:** kein Export und keine Datei. Oben rechts stehen der
+  Datenstand und der Knopf **„↻ Neu laden“** (liest sofort neu aus Odoo). Siehe „Cache“ unten.
 * **Lesen ist dreifach abgesichert:** Datenbankbenutzer nur mit `SELECT`, Sitzung mit
   `default_transaction_read_only`, jede Abfrage als `READ ONLY`-Transaktion. Zusätzlich ist das
   Dateisystem des Containers schreibgeschützt, und der Dienst läuft ohne Root-Rechte.
@@ -54,6 +53,28 @@ muss `"nur_lesend": true` zeigen.
 * **Ladeanzeige und klare Fehlermeldung**, wenn die Datenbank nicht erreichbar ist.
 * Alle Texte, die auf „Hop-Pipeline neu laufen lassen“ verwiesen, zeigen jetzt auf „↻ Neu laden“.
 * Getestet mit 30.000 Kontakten: Abfrage ≈ 3 s, Seite ≈ 2 s.
+
+## Cache: die Datenbank wird nicht bei jedem Aufruf gelesen
+
+* Das Ergebnis der Abfrage wird komprimiert gespeichert: im Speicher und als Datei im Volume `cache`.
+  Nach einem Neustart oder Update des Containers ist es sofort wieder da, ohne Datenbankabfrage.
+* Jeder Aufruf der Seite bekommt **sofort** den gespeicherten Stand. Ist er älter als
+  `CACHE_MINUTEN` (Standard 60), wird **einmal im Hintergrund** neu gelesen. Oben steht dann
+  „⟳ wird aktualisiert“. Viele gleichzeitige Aufrufe lösen trotzdem nur eine Abfrage aus.
+* **„↻ Neu laden“** liest sofort neu, aber höchstens alle `NEU_LADEN_SPERRE_SEKUNDEN` (Standard 60),
+  damit wiederholtes Klicken die Datenbank nicht belastet.
+* Optional zu festen Uhrzeiten neu lesen, z. B. `AKTUALISIEREN_UM=06:30,12:30`. Mit
+  `CACHE_MINUTEN=0` wird nur noch zu diesen Zeiten und per Knopf gelesen.
+* Der Browser lädt unveränderte Daten nicht erneut herunter (ETag, Antwort 304).
+* Ist die Datenbank nicht erreichbar, zeigt die Seite den letzten Stand weiter an.
+* `/health` fragt die Datenbank nicht (der Docker-Healthcheck läuft jede Minute) und zeigt den
+  Cache-Stand. `/health?db=1` prüft zusätzlich die Verbindung und ob sie nur lesend ist.
+
+Cache leeren (der nächste Aufruf liest dann neu):
+
+```bash
+docker compose down && docker volume rm $(basename "$PWD")_cache && docker compose up -d
+```
 
 ## Woher kommen die Werte? (Odoo 18)
 
@@ -96,7 +117,10 @@ GS1-Prüfziffer, Leitweg-ID mit Prüfziffer nach ISO 7064 MOD 97-10.
 | `INCLUDE_INACTIVE` | archivierte Kontakte mitladen |
 | `PRUEF_UMFANG` | `alle` (Standard) oder `rechnungsempfaenger` |
 | `MASSEN_GRENZE` | ab wie vielen Kontakten pro Person und Minute eine Änderung als Massenänderung gilt (Standard 30) |
-| `CACHE_SECONDS` | wie lange ein Ergebnis wiederverwendet wird |
+| `CACHE_MINUTEN` | Alter, ab dem beim nächsten Aufruf im Hintergrund neu gelesen wird (0 = nie automatisch) |
+| `AKTUALISIEREN_UM` | feste Uhrzeiten zum Neulesen, z. B. `06:30,12:30` |
+| `NEU_LADEN_SPERRE_SEKUNDEN` | Knopf „Neu laden“ liest höchstens so oft wirklich neu |
+| `VORLADEN` | beim Start ohne Cache gleich im Hintergrund lesen |
 | `APP_USER`, `APP_PASSWORD` | Passwortschutz der Seite |
 | `APP_PORT` | Port auf dem Server |
 

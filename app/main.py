@@ -1,11 +1,10 @@
-"""Webdienst: liefert die Seite und die Daten live aus der Odoo-Datenbank (nur lesend)."""
+"""Webdienst: liefert die Seite und die Daten aus der Odoo-Datenbank (nur lesend, mit Cache)."""
 from __future__ import annotations
 
 import base64
+import gzip
 import logging
 import secrets
-import threading
-import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -13,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from . import config, odoo_db
+from .cache import DatenCache
 
 log = logging.getLogger("erechnung")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -21,8 +21,12 @@ STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="E-Rechnungs-Check Odoo 18", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=2000, compresslevel=6)
 
-_cache: dict = {"t": 0.0, "data": None}
-_lock = threading.Lock()
+CACHE = DatenCache(config.CACHE_DIR)
+
+
+@app.on_event("startup")
+def _start():
+    CACHE.zeitplan_starten()
 
 
 @app.middleware("http")
@@ -45,51 +49,56 @@ async def basic_auth(request: Request, call_next):
     return resp
 
 
-def get_data(refresh: bool = False) -> dict:
-    with _lock:  # nur eine Abfrage gleichzeitig; parallele Aufrufe bekommen dasselbe Ergebnis
-        if not refresh and _cache["data"] and time.monotonic() - _cache["t"] < config.CACHE_SECONDS:
-            return _cache["data"]
-        t0 = time.monotonic()
-        with odoo_db.connect() as conn:
-            data = odoo_db.load(conn)
-        _cache.update(t=time.monotonic(), data=data)
-        log.info("Daten aus Odoo gelesen: %d Kontakte in %.1fs", len(data["rows"]), time.monotonic() - t0)
-        return data
-
-
 def index():
     return FileResponse(STATIC / "index.html", media_type="text/html; charset=utf-8",
                         headers={"Cache-Control": "no-cache"})
 
 
-def kontakte(refresh: int = 0):
+def kontakte(request: Request, refresh: int = 0):
     try:
-        data = get_data(bool(refresh))
+        gz, etag, laeuft = CACHE.holen(neu=bool(refresh))
     except Exception as e:  # Fehler verständlich an die Seite melden
         log.exception("Datenbankabfrage fehlgeschlagen")
         return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=503)
-    return JSONResponse(data, headers={"Cache-Control": "no-store"})
+    headers = {
+        "ETag": etag,
+        # Browser darf behalten, muss aber jedes Mal kurz nachfragen (unverändert -> 304 ohne Daten)
+        "Cache-Control": "private, no-cache",
+        "X-Daten-Alter-Minuten": str(round(CACHE.alter_s / 60, 1)),
+        "X-Wird-Aktualisiert": "1" if laeuft else "0",
+        "Vary": "Accept-Encoding",
+    }
+    if etag in request.headers.get("if-none-match", ""):
+        return Response(status_code=304, headers=headers)
+    if "gzip" in request.headers.get("accept-encoding", ""):
+        return Response(gz, media_type="application/json", headers={**headers, "Content-Encoding": "gzip"})
+    return Response(gzip.decompress(gz), media_type="application/json", headers=headers)
 
 
-def health():
+def health(db: int = 0):
+    """Ohne ?db=1 wird die Datenbank NICHT gefragt (Docker-Healthcheck läuft jede Minute)."""
+    out = {"status": "ok", "cache": CACHE.info()}
+    if not db:
+        return out
     try:
         with odoo_db.connect() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1 AS ok, current_setting('transaction_read_only') AS ro")
             r = cur.fetchone()
-        return {"status": "ok", "datenbank": config.PGDATABASE, "nur_lesend": r["ro"] == "on"}
+        out.update(datenbank=config.PGDATABASE, nur_lesend=r["ro"] == "on")
+        return out
     except Exception as e:
-        return JSONResponse({"status": "fehler", "fehler": str(e)}, status_code=503)
+        return JSONResponse({"status": "fehler", "fehler": str(e), "cache": CACHE.info()}, status_code=503)
 
 
 @app.get("/{pfad:path}")
-def route(pfad: str, refresh: int = 0):
+def route(pfad: str, request: Request, refresh: int = 0, db: int = 0):
     """Jede Adresse funktioniert: auch /index.html, der alte Dateiname und Unterpfade hinter
     einem Reverse-Proxy (z. B. /erechnung/api/kontakte), ohne extra Einstellung."""
     p = pfad.rstrip("/")
     if p == "api/kontakte" or p.endswith("/api/kontakte"):
-        return kontakte(refresh)
+        return kontakte(request, refresh)
     if p == "health" or p.endswith("/health"):
-        return health()
+        return health(db)
     if p == "favicon.ico" or p.endswith("/favicon.ico"):
         return Response(status_code=204)
     return index()

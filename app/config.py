@@ -42,6 +42,13 @@ MASSEN_GRENZE = _int("MASSEN_GRENZE", 30)
 TZ = os.environ.get("TZ_ANZEIGE", os.environ.get("TZ", "Europe/Berlin"))
 
 # --- Web ---
-CACHE_SECONDS = _int("CACHE_SECONDS", 120)   # so lange wird ein Abfrageergebnis wiederverwendet
+# --- Cache: die Datenbank nicht bei jedem Aufruf lesen ---
+# Nach so vielen Minuten wird beim nächsten Aufruf im Hintergrund neu gelesen (0 = nie automatisch,
+# nur per Knopf „Neu laden“ oder AKTUALISIEREN_UM). Bis dahin kommen die Daten aus dem Cache.
+CACHE_MINUTEN = _int("CACHE_MINUTEN", 60)
+CACHE_DIR = os.environ.get("CACHE_DIR", "/cache")          # Volume: Cache übersteht Neustarts
+NEU_LADEN_SPERRE_SEKUNDEN = _int("NEU_LADEN_SPERRE_SEKUNDEN", 60)   # Knopf „Neu laden“ höchstens so oft
+AKTUALISIEREN_UM = os.environ.get("AKTUALISIEREN_UM", "")  # feste Uhrzeiten, z. B. "06:30,12:30"
+VORLADEN = _bool("VORLADEN", True)                         # beim Start ohne Cache gleich im Hintergrund lesen
 APP_USER = os.environ.get("APP_USER", "")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
