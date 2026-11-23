@@ -1,0 +1,25 @@
+# E-Rechnungs-Check für Odoo 18 – liest die Odoo-Datenbank direkt und nur lesend.
+#
+#   cp .env.example .env    # Zugangsdaten eintragen
+#   docker compose up -d --build
+#   -> http://localhost:8080
+services:
+  erechnung-check:
+    build: .
+    image: erechnung-check:latest
+    container_name: erechnung-check
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    read_only: true            # Container-Dateisystem schreibgeschützt
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    # Läuft die Odoo-Datenbank in einem anderen Compose-Projekt, dessen Netz hier eintragen
+    # (Name siehe `docker network ls`) und PGHOST auf den Dienstnamen der Datenbank setzen:
+    # networks: [odoo]
+
+# networks:
+#   odoo:
+#     external: true
+#     name: odoo_default
