@@ -478,6 +478,15 @@
   /* live aus Odoo */
   .live{color:#3ecf8e;font-weight:700;margin-right:4px}
   .upd{color:#f0c060;font-weight:600;margin-left:4px}
+  /* Dubletten-Vergleich */
+  .dupwrap{overflow-x:auto;margin:6px 0;background:#fff;border-radius:8px;border:1px solid var(--line)}
+  .duptab{border-collapse:collapse;width:100%;font-size:12.5px}
+  .duptab th,.duptab td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  .duptab tbody th{color:var(--muted);font-weight:600;white-space:nowrap;width:1%}
+  .duptab thead th{background:var(--grey-bg);font-weight:600;min-width:170px}
+  .duptab thead th.keep{background:var(--ok-bg)}
+  .duptab td.same,.dlg.same{background:#e7f6ef} .duptab td.diff,.dlg.diff{background:#fff4e0} .duptab td.empty{color:var(--muted)}
+  .dlg{padding:0 6px;border-radius:4px}
   header.top .meta .reload{padding:2px 9px;font-size:11.5px;margin-left:6px;vertical-align:middle}
   #loadOverlay{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
   #loadOverlay .ldbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 32px;max-width:560px;text-align:center;box-shadow:0 8px 30px rgba(16,24,40,.08)}
@@ -760,12 +769,17 @@
   // Basis-Pfad der Seite (funktioniert auch hinter einem Proxy unter z. B. /erechnung ohne Schrägstrich)
   var base = location.pathname;
   if (!/\/$/.test(base)) base = /\.[a-z0-9]+$/i.test(base) ? base.replace(/[^\/]*$/, '') : base + '/';
+  window.__ENTSCH = fetch(base + 'api/entscheidungen', {credentials: 'same-origin', cache: 'no-store'})
+    .then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; });
   fetch(base + 'api/kontakte' + (refresh ? '?refresh=1' : ''), {credentials: 'same-origin', cache: 'no-cache'})
     .then(function (r) { window.__DATEN_HDR = {aktualisiert: r.headers.get('X-Wird-Aktualisiert') === '1', alter: r.headers.get('X-Daten-Alter-Minuten')};
       return r.json().catch(function () { return {error: 'Antwort ' + r.status + ' ' + r.statusText}; })
       .then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ('Antwort ' + r.status)); return j; }); })
     .then(function (j) {
       window.ODOO_COLS = j.cols; window.ODOO_ROWS = j.rows; window.ODOO_META = Object.assign({}, j.meta, window.__DATEN_HDR || {});
+      return window.__ENTSCH.then(function (en) { window.ODOO_ENTSCH = en || {}; });
+    })
+    .then(function () {
       var s = document.createElement('script');
       s.textContent = document.getElementById('app-main').textContent;
       document.body.appendChild(s);
@@ -942,6 +956,12 @@ const ERKL = {
   'gleiche Referenz/Kundennr.': {
     warum: 'Zwei Kontakte haben dieselbe Referenz bzw. Kundennummer. Eine Kundennummer sollte eindeutig sein.',
     tun: 'Prüfen, welcher Kontakt richtig ist, Dublette zusammenführen oder Referenz korrigieren.'},
+  'Kopie mit gleichem Namen': {
+    warum: 'Ein Kontakt heißt wie ein anderer, nur mit „(Kopie)“ dahinter. So benennt Odoo einen Kontakt, der über „Duplizieren“ angelegt wurde. Fast immer versehentlich.',
+    tun: 'Vergleichen und zusammenführen. Braucht man die Kopie wirklich (z. B. als zweite Adresse), umbenennen und als Unterkontakt anlegen.'},
+  'ähnlicher Name + PLZ': {
+    warum: 'Zwei Kontakte am selben Ort heißen fast gleich (z. B. „Metzgerei Schmid GmbH“ und „Metzgerei Schmidt“). Oft ein Tippfehler oder einmal mit, einmal ohne Rechtsform.',
+    tun: 'Vergleichen. Ist es dieselbe Firma: zusammenführen. Sonst „Keine Dublette“ klicken, dann erscheint das Paar nicht mehr.'},
   'gleicher Name + PLZ': {
     warum: 'Zwei Kontakte haben denselben Namen am selben Ort (Groß-/Kleinschreibung, Umlaute und GmbH/AG usw. werden ignoriert). Sehr wahrscheinlich doppelt angelegt.',
     tun: 'Beide Kontakte vergleichen und zusammenführen.'},
@@ -967,7 +987,7 @@ const FIRMA_NB = 'Unternehmen: E-Rechnung noch nicht bereit';
 const ownErr = r => r._err.some(e => e !== FIRMA_NB);   // eigene Fehler (ohne „Unternehmen nicht bereit“)
 const FEHLER = ['Unternehmen: E-Rechnung noch nicht bereit','GLN im Namen: als Peppol-ID „EAN-Standortcode“ eintragen','GLN im Namen: Prüfziffer falsch','Handelskunde mit GLN: Format muss „Deutschland (ZUGFeRD)“ sein','Letzte E-Rechnung: Peppol-Versand fehlgeschlagen','Kontrolle: als falsch gemeldet','Format nicht gewählt (steht auf „XML-Format“)','Falsches Format: nur „Deutschland (ZUGFeRD)“ oder „Deutschland (XRechnung)“','Straße fehlt','PLZ fehlt','Ort fehlt','Land fehlt','E-Mail fehlt','E-Mail ungültig','E-Mail enthält unsichtbare Zeichen (Leerzeichen/Zeilenumbruch)','Mehrere E-Mail-Adressen in einem Feld','USt-IdNr. fehlt (EU-Ausland)','USt-IdNr. Format ungültig','USt-IdNr. Prüfziffer falsch','Kein E-Rechnungsformat','XRechnung: Käuferreferenz BT-10 (Feld Referenz am Unternehmen) fehlt','B2G: Leitweg-ID fehlt (Peppol-Endpoint)','B2G: Leitweg-ID hat falsches Format','B2G: Leitweg-ID Prüfziffer falsch','Peppol-Art falsch: Leitweg-ID unter anderer Art eingetragen','B2G: Format muss XRechnung sein','Peppol: EAS/Endpoint fehlt','Peppol: Empfänger nicht verifiziert','Peppol: EAS 9958 ist veraltet','Peppol 9930: Endpoint ist keine gültige DE-USt-IdNr.','GLN: muss 13 Ziffern haben','GLN: Prüfziffer falsch'];
 const HINW = ['GLN im Namen: auch im Feld Barcode eintragen','USt-IdNr. fehlt (empfohlen)','Format nur Odoo-Vorschlag (nicht bewusst gesetzt)','Versandart nicht gesetzt (Standard)','GLN im Barcode: Prüfziffer falsch','GLN in Barcode und Peppol-Endpoint unterschiedlich','Leitweg-ID im Feld Referenz: Behörde? Peppol-Art „Leitweg-ID“ prüfen','Privatperson: E-Rechnung nicht erforderlich'];
-const DUPW = ['gleiche USt-IdNr.','gleiche IBAN','gleiche Peppol-ID','gleiche Referenz/Kundennr.','gleicher Name + PLZ','gleiche E-Mail','gleicher Name','gleiche Telefonnr.'];
+const DUPW = ['Kopie mit gleichem Namen','gleiche USt-IdNr.','gleiche IBAN','gleiche Peppol-ID','gleiche Referenz/Kundennr.','gleicher Name + PLZ','ähnlicher Name + PLZ','gleiche E-Mail','gleicher Name','gleiche Telefonnr.'];
 // Gewicht = Dringlichkeit (je höher, desto weiter oben in der Arbeitsliste)
 const WEIGHT = {
   'Unternehmen: E-Rechnung noch nicht bereit':1,
@@ -1096,12 +1116,27 @@ function fertigCheck(r){
   L.push(['kon', 'Vier-Augen-Kontrolle bestanden', !r._konOpen && r._kon !== 'falsch']);
   return L;
 }
+/* ---------- Dubletten: Details und gemeinsame Entscheidung „keine Dublette“ ---------- */
+const BYID = new Map(DATA.map(r => [Number(r.odoo_id), r]));
+let NODUP = (window.ODOO_ENTSCH && window.ODOO_ENTSCH.keine_dublette) || {};
+const pairKey = (a, b) => { a = Number(a); b = Number(b); return a < b ? a + '-' + b : b + '-' + a; };
+const dupLevel = sc => sc >= 4 ? 'stark' : sc >= 2 ? 'mittel' : sc > 0 ? 'schwach' : '';
+function dupApply(r){
+  let L = null; try { L = JSON.parse(r.dublette_json || 'null'); } catch (e) {}
+  if (!Array.isArray(L)) { r._dupList = []; r._noDup = []; return; }   // alte Daten ohne Details
+  r._dupList = L.filter(x => !NODUP[pairKey(r.odoo_id, x.id)]);
+  r._noDup = L.filter(x => NODUP[pairKey(r.odoo_id, x.id)]).map(x => Object.assign({}, x, NODUP[pairKey(r.odoo_id, x.id)]));
+  r._dup = dupLevel(Math.max(0, ...r._dupList.map(x => x.score)));
+  r._dupWhy = DUPW.filter(w => r._dupList.some(x => x.gruende.includes(w)));
+  r._dupWith = r._dupList.map(x => `${(BYID.get(x.id) || {}).name || 'Kontakt'} (#${x.id}): ${x.gruende.join(', ')}`);
+}
 /* ---------- Datensätze vorbereiten ---------- */
 const HAYKEYS = ['kontrolle_aenderer','kontrolle_pruefer','name','rechnungs_unternehmen','zugehoeriges_unternehmen','referenz','stadt','plz','strasse','email','telefon','ust_idnr','peppol_endpoint','kaeuferreferenz_bt10','bankkonten_iban','gln','barcode','externe_id','odoo_id','vertriebsmitarbeiter','angelegt_von','geaendert_von'];
 DATA.forEach((r, i) => {
   r._i = i; r._rel = yes(r.rechnungsrelevant); r._act = yes(r.aktiv); r._cust = Number(r.kundenrang || 0) > 0;
   r._err = split(r.e_rechnung_fehler); r._hint = split(r.e_rechnung_hinweise);
   r._dup = r.dublette_verdacht || ''; r._dupWhy = split(r.dublette_gruende); r._dupWith = split(r.dublette_mit);
+  r._intern = yes(r.intern); dupApply(r);
   r._fmt = r.e_rechnungsformat || '';
   r._cpRow = r.ist_rechnungsunternehmen !== 'nein';   // Unternehmen bzw. Einzelkontakt (nicht Ansprechpartner/Adresse)
   // Bereit nur mit bewusst gewähltem ZUGFeRD oder XRechnung ("XML-Format" in Odoo = nichts gewählt)
@@ -1281,7 +1316,7 @@ function renderProgress(){
 function queueItem(r, i){
   const done = isDone(r);
   const p = done ? 'dn' : r._err.some(e => (WEIGHT[e] || 0) >= 8) || r._dup === 'stark' ? 'p3' : r._err.length || r._dup ? 'p2' : 'p0';
-  const what = W.scope === 'fast' ? `fehlt: ${esc(r._fehlt.map(x => x[1]).join(', '))}` : W.scope.startsWith('kon') ? `${ME && r._konAend.includes(ME) ? '<b>deine Änderung</b> · ' : ''}geändert von ${esc(r._konAend.join(', '))} · ${esc(dt(r.kontrolle_geaendert_am))}` : W.scope.startsWith('dup') ? `Dublette ${esc(r._dup)} · Gruppe ${esc(r.dublette_gruppe)}`
+  const what = W.scope === 'fast' ? `fehlt: ${esc(r._fehlt.map(x => x[1]).join(', '))}` : W.scope.startsWith('kon') ? `${ME && r._konAend.includes(ME) ? '<b>deine Änderung</b> · ' : ''}geändert von ${esc(r._konAend.join(', '))} · ${esc(dt(r.kontrolle_geaendert_am))}` : W.scope.startsWith('dup') ? `Dublette ${esc(r._dup)}${r._dupList && r._dupList.length ? ' · mit ' + esc((BYID.get(r._dupList[0].id) || {}).name || '') + (r._dupList.length > 1 ? ` +${r._dupList.length - 1}` : '') : ''}`
              : r._err.length ? esc(r._err[0]) + (r._err.length > 1 ? ` +${r._err.length - 1}` : '') : r._hint.length ? esc(r._hint[0]) : '';
   return `<li data-q="${i}" class="${p}${i === W.sel ? ' sel' : ''}${done ? ' done' : ''}${isSkip(r) ? ' skip' : ''}"><span class="dot ${p}"></span>
     <div style="min-width:0"><div class="nm">${esc(r.name)}</div><div class="ds">${esc([r.plz, r.stadt].filter(Boolean).join(' '))}${r.vertriebsmitarbeiter ? ' · ' + esc(r.vertriebsmitarbeiter) : ''}</div><div class="ds" style="color:${r._err.length ? 'var(--err)' : 'var(--warn)'}">${what}</div></div>
@@ -1790,6 +1825,92 @@ const problem = (t, cls, extra = '') => { const e = erkl(t);
 const copyBtn = v => v ? ` <button class="copy" data-copy="${esc(v)}" title="kopieren">⧉</button>` : '';
 function fact(label, html, bad){ return `<div class="fact${bad ? ' bad' : ''}"><div class="k">${label}</div><div class="v">${html || '<span class="sub">–</span>'}</div></div>`; }
 
+/* ---------- Dubletten vergleichen und zusammenführen ---------- */
+const DUP_ROWS = [
+  ['Name', x => x.name],
+  ['Art', x => x._intern ? 'eigene Firma / Mitarbeiter / Benutzer' : adrLabel(x) + (x.rechnungs_unternehmen && x.rechnungs_unternehmen !== x.name ? ' von ' + x.rechnungs_unternehmen : '')],
+  ['Referenz', x => x.referenz], ['Straße', x => x.strasse], ['PLZ Ort', x => [x.plz, x.stadt].filter(Boolean).join(' ')],
+  ['E-Mail', x => String(x.email || '').trim()], ['Telefon', x => x.telefon || x.mobil], ['USt-IdNr.', x => x.ust_idnr],
+  ['IBAN', x => x.bankkonten_iban], ['Benutzerzugang', x => yes(x.hat_benutzer) ? 'ja' : ''],
+  ['Rechnungen', x => x._inv ? `${x._inv} (zuletzt ${dt(x.rechnungen_letzte)})` : ''],
+  ['E-Rechnung', x => x._err.length ? x._err.length + ' Fehler' : (AF_BEREIT[x.e_rechnung_bereit] || '')],
+  ['Angelegt', x => [dt(x.angelegt_am).slice(0, 10), x.angelegt_von].filter(Boolean).join(' · ')],
+  ['Geändert', x => [dt(x.geaendert_am).slice(0, 10), x.geaendert_von].filter(Boolean).join(' · ')],
+];
+const DUP_KEEP_FIELDS = ['referenz','strasse','plz','stadt','email','telefon','ust_idnr','bankkonten_iban','peppol_endpoint','kaeuferreferenz_bt10'];
+// Vorschlag, welcher Kontakt bleibt: Benutzerzugang > Rechnungen > mehr ausgefüllt > älter
+const keepScore = x => (yes(x.hat_benutzer) ? 1e7 : 0) + Math.min(x._inv || 0, 9999) * 100 + DUP_KEEP_FIELDS.filter(k => String(x[k] || '').trim()).length * 5 - Number(x.odoo_id) / 1e7;
+function dupBox(r){
+  const others = (r._dupList || []).slice(0, 4).map(x => Object.assign({row: BYID.get(x.id)}, x)).filter(x => x.row);
+  if (!others.length) return '';
+  const cols = [r, ...others.map(x => x.row)];
+  const cand = cols.filter(x => !x._intern);
+  const keep = cand.length ? cand.reduce((a, b) => keepScore(b) > keepScore(a) ? b : a) : null;
+  const intern = cols.filter(x => x._intern);
+  const head = `<tr><th></th>${cols.map((x, i) => `<th class="${x === keep ? 'keep' : ''}">
+      ${i === 0 ? '<span class="badge b-info">dieser</span>' : `<span class="sub">${esc(others[i - 1].gruende.join(', '))}</span>`}
+      ${x === keep ? '<div><span class="badge b-ok" title="Vorschlag: hat Benutzerzugang/Rechnungen oder die meisten Angaben">★ behalten</span></div>' : x._intern ? '<div><span class="badge b-grey">nicht zusammenführen</span></div>' : ''}
+      <div><a href="${odooLink(x.odoo_id)}" target="${ODOO_TAB}" rel="noopener">#${x.odoo_id} öffnen ↗</a></div></th>`).join('')}</tr>`;
+  const body = DUP_ROWS.map(([lab, fn]) => {
+    const vals = cols.map(x => String(fn(x) ?? '').trim());
+    const filled = vals.filter(Boolean), same = filled.length > 1 && new Set(filled.map(v => v.toLowerCase())).size === 1;
+    if (!filled.length) return '';
+    return `<tr><th>${lab}</th>${vals.map(v => `<td class="${!v ? 'empty' : same ? 'same' : filled.length > 1 ? 'diff' : ''}">${v ? esc(v) : '–'}</td>`).join('')}</tr>`;
+  }).join('');
+  // Anleitung Odoo 18: Kontakte-Liste → markieren → Aktion → Zusammenführen
+  const merge = cand.filter(x => x !== keep).slice(0, 2);
+  const mails = new Set((keep ? [keep, ...merge] : merge).map(x => String(x.email || '').trim().toLowerCase()));
+  const users = cand.filter(x => yes(x.hat_benutzer)).length;
+  const w = [];
+  if (intern.length) w.push(`<b>${intern.map(x => '#' + x.odoo_id).join(', ')}</b> ist ein Kontakt der eigenen Firma bzw. eines Mitarbeiters/Benutzers: <b>nicht</b> damit zusammenführen. Prüfen, ob der Kundenkontakt wirklich gebraucht wird (z. B. privater Einkauf), sonst archivieren.`);
+  if (mails.size > 1) w.push('Die E-Mail-Adressen sind verschieden. Odoo lässt dann nur <b>Administratoren</b> zusammenführen. Vorher die E-Mail in allen Kontakten gleich setzen (die richtige Adresse kopieren) oder einen Administrator fragen.');
+  if (users > 1) w.push('Mehr als ein Kontakt hat einen Benutzerzugang (Portal oder Mitarbeiter). Das lehnt Odoo ab. Bitte die IT fragen.');
+  if (cand.length > 3) w.push('Odoo führt höchstens <b>3 Kontakte auf einmal</b> zusammen. Bei mehr Kontakten den Vorgang wiederholen.');
+  // Suchbegriff für Odoo: gemeinsame Referenz/E-Mail findet alle auf einmal, sonst jeden Namen (Odoo verknüpft mit „oder“)
+  const grp = keep ? [keep, ...merge] : merge;
+  const common = f => { const v = grp.map(x => String(x[f] || '').trim()); return v[0] && v.every(y => y.toLowerCase() === v[0].toLowerCase()) ? v[0] : ''; };
+  const terms = common('referenz') ? [common('referenz')] : common('email') ? [common('email')]
+    : [...new Set(grp.map(x => String(x.name || '').replace(/\s*\((kopie|copy)\)\s*/i, '').trim()))].slice(0, 3);
+  const termHtml = terms.map(t => `<code>${esc(t)}</code> <button class="btn small" data-copy="${esc(t)}">kopieren</button>`).join(' und dann ');
+  const steps = keep && merge.length ? `<ol class="kon-steps">
+      <li>In Odoo <b>Kontakte</b> öffnen, oben rechts auf <b>Liste ☰</b> umschalten und suchen nach: ${termHtml}${terms.length > 1 ? ' <span class="sub">(jeweils einfügen und Enter: Odoo zeigt dann alle)</span>' : ''}</li>
+      <li>Diese Kontakte <b>anhaken</b>: ${[keep, ...merge].map(x => `<b>#${x.odoo_id}</b> ${esc(x.name)}${x.stadt ? ' (' + esc(x.stadt) + ')' : ''}`).join(', ')}. <span class="sub">Die Odoo-ID steht in der Adresszeile, wenn man den Kontakt öffnet.</span></li>
+      <li>Oben <b>⚙ Aktionen → „Zusammenführen“</b>.</li>
+      <li>Bei <b>„Zielkontakt“</b> <b>#${keep.odoo_id} ${esc(keep.name)}</b> wählen (bleibt erhalten) → <b>„Kontakte zusammenführen“</b>. Rechnungen, Notizen und Ansprechpartner der anderen wandern zu diesem Kontakt.</li>
+    </ol>` : '';
+  return `<div class="ek d dupbox"><div class="ek-t">👯 Möglicherweise doppelt angelegt (${esc(r._dup)})</div>
+    <div style="margin:4px 0">${r._dupWhy.map(w => `<span class="chip h help" title="${tip(w)}">${esc(w)} <b>?</b></span>`).join('')}</div>
+    <div class="dupwrap"><table class="duptab"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div class="sub" style="margin:2px 0 6px"><span class="dlg same">gleich</span> <span class="dlg diff">unterschiedlich</span>${(r._dupList || []).length > others.length ? ` · weitere ähnliche: ${r._dupList.slice(others.length).map(x => linkIds(((BYID.get(x.id) || {}).name || 'Kontakt') + ' (#' + x.id + ')')).join(', ')}` : ''}</div>
+    ${w.map(t => `<div class="kon-ich" style="background:var(--warn-bg);color:var(--warn);margin:4px 0">⚠ ${t}</div>`).join('')}
+    ${steps ? `<details ${W.scope && W.scope.startsWith('dup') ? 'open' : ''}><summary><b>So in Odoo zusammenführen</b></summary>${steps}</details>` : ''}
+    <div class="sugg" style="margin-top:8px">
+      <input type="text" id="dupGrund" placeholder="Warum keine Dublette? z. B. eigene Filiale, Vater und Sohn" style="flex:1;min-width:220px;padding:7px 9px;border:1px solid var(--line);border-radius:8px">
+      ${others.map(x => `<button class="btn" data-nodup="${x.id}" data-id="${r.odoo_id}" title="Dieses Paar nicht mehr als Dublette zeigen (gilt für alle Kollegen)">≠ #${x.id} ist keine Dublette</button>`).join('')}
+    </div></div>`;
+}
+async function dupDecide(id, other, aktion){
+  const grund = ($('dupGrund') || {}).value || '';
+  if (!ME) { toast('Bitte zuerst oben bei „Ich bin …“ deinen Namen wählen'); const m = $('wMe'); if (m) m.focus(); return; }
+  try {
+    const base = location.pathname.replace(/[^\/]*$/, '');
+    const res = await fetch(base + 'api/entscheidungen', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({aktion, ids: [Number(id), Number(other)], wer: ME || '', grund})});
+    const j = await res.json(); if (!res.ok) throw new Error(j.error || res.status);
+    NODUP = j.keine_dublette || {};
+  } catch (e) { toast('Speichern nicht möglich: ' + e.message); return; }
+  [BYID.get(Number(id)), BYID.get(Number(other))].forEach(x => { if (x) { dupApply(x); x._sig = x._err.join('|') + '#' + x._hint.join('|') + '#' + x._dupWhy.join('|') + '#' + x._kon + (x.kontrolle_geaendert_am || ''); } });
+  toast(aktion === 'keine_dublette' ? 'Gespeichert: keine Dublette (gilt für alle Kollegen)' : 'Zurückgenommen');
+  const cur = W.list[W.sel]; refreshWork(cur && cur.odoo_id);
+  if (typeof allRendered !== 'undefined' && allRendered) renderAll();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-nodup],[data-dupundo]'); if (!b) return;
+  e.preventDefault();
+  if (b.dataset.nodup) dupDecide(b.dataset.id, b.dataset.nodup, 'keine_dublette');
+  else dupDecide(b.dataset.id, b.dataset.dupundo, 'zuruecknehmen');
+});
+
 function cardHTML(r, inQueue){
   const has = t => r._err.includes(t) || r._hint.includes(t);
   const adrBad = ['Straße fehlt','PLZ fehlt','Ort fehlt','Land fehlt'].some(has);
@@ -1807,11 +1928,13 @@ function cardHTML(r, inQueue){
         `<button class="btn" data-act="skip" title="ans Ende der Liste verschieben">${isSkip(r) ? 'Nicht mehr später' : 'Später'} <kbd>S</kbd></button>` +
         `<button class="btn" data-act="prev" title="vorheriger"><kbd>K</kbd> ↑</button><button class="btn" data-act="next">Weiter ↓ <kbd>J</kbd></button>` : ''}
     </div></div><div class="cb2">`;
+  const dupFirst = inQueue && W.scope.startsWith('dup');
+  if (dupFirst && r._dupWhy.length) h += dupBox(r);
   h += kontrolleBox(r, inQueue);
   const escN = Object.entries(EZ.esc).filter(([k]) => k.startsWith(r.odoo_id + '|'));
   if (escN.length) h += `<div class="ek" style="border-left-color:#8a63d2;background:#f3eefc"><div class="ek-t">🎓 Praktikant fragt nach</div>` +
     escN.map(([k, x]) => `<div><b>${esc(x.title)}</b>${x.note ? ': ' + esc(x.note) : ''} <span class="sub">(${new Date(x.ts).toLocaleString('de-DE')})</span> <button class="btn small" data-escdone="${esc(k)}">geklärt</button></div>`).join('') + `</div>`;
-  const nTodo = r._err.length + r._hint.length + (r._dupWhy.length ? 1 : 0);
+  const nTodo = r._err.length + r._hint.length + (r._dupWhy.length && !dupFirst ? 1 : 0);
   if (nTodo) {
     h += `<h3>Was ist zu tun? <span class="cnt">${nTodo}</span></h3>`;
     h += r._err.map(t => problem(t, 'e')).join('');
@@ -1822,13 +1945,12 @@ function cardHTML(r, inQueue){
       : `<div class="sugg"><span>${esc(d.feldname)}: <span class="mono" style="color:var(--muted)">${vis(d.alt(r)) || '(leer)'}</span> →</span> <span class="val">${esc(r[d.key])}</span>
       <button class="btn small" data-copy="${esc(r[d.key])}">Kopieren <kbd>C</kbd></button></div>`).join('') +
     `<div class="sub" style="margin-top:6px">Wert kopieren und in Odoo ins Feld einfügen, oder alle gesammelt über den Reiter „Import-Korrekturen“${r.externe_id ? '' : ' (dieser Kontakt braucht dafür erst eine Externe ID)'}.</div></div>`;
-    if (r._dupWhy.length) h += problem('Möglicherweise doppelt angelegt (' + r._dup + ')', 'd',
-      `<div><span class="lbl">Gründe:</span> ${r._dupWhy.map(w => `<span class="chip h help" title="${tip(w)}">${esc(w)} <b>?</b></span>`).join('')}</div>` +
-      `<div><span class="lbl">Ähnliche Kontakte:</span><br>${r._dupWith.map(linkIds).join('<br>')}</div>` +
-      `<div class="sub" style="margin-top:4px">${esc((erkl(r._dupWhy[0]) || {}).tun || 'Beide Kontakte vergleichen und in Odoo zusammenführen.')}</div>`);
+    if (r._dupWhy.length && !dupFirst) h += dupBox(r);
     h += peppolHints(r).map(t => `<div class="ek h"><div class="ek-t">Feld „Peppol-ID“ prüfen</div>${esc(t)}</div>`).join('');
     h += r._hint.map(t => problem(t, 'h')).join('');
-  } else h += `<div class="ek" style="border-left-color:var(--ok);background:var(--ok-bg)"><b>✓ Keine Fehler.</b> Hier ist nichts zu korrigieren.</div>`;
+  } else if (!dupFirst) h += `<div class="ek" style="border-left-color:var(--ok);background:var(--ok-bg)"><b>✓ Keine Fehler.</b> Hier ist nichts zu korrigieren.</div>`;
+  if ((r._noDup || []).length) h += `<div class="sub" style="margin:6px 0">Als <b>keine Dublette</b> markiert: ` +
+    r._noDup.map(x => `${linkIds(((BYID.get(x.id) || {}).name || 'Kontakt') + ' (#' + x.id + ')')} <span class="sub">(${esc(x.wer || '?')}, ${esc(dt(x.wann))}${x.grund ? ': ' + esc(x.grund) : ''})</span> <button class="btn small" data-dupundo="${x.id}" data-id="${r.odoo_id}">zurücknehmen</button>`).join(' · ') + `</div>`;
   h += erechBox(r);
   h += `<details class="sect"><summary>📄 Daten des Kontakts</summary><div class="facts">` +
     fact('Adresse', [esc(r.strasse), esc(r.strasse2), esc([r.land_code, r.plz].filter(Boolean).join('-') + ' ' + (r.stadt || ''))].filter(x => x && x.trim()).join('<br>'), adrBad) +

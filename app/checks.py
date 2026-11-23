@@ -53,8 +53,12 @@ H_PRIVAT = "Privatperson: E-Rechnung nicht erforderlich"
 
 D_VAT, D_IBAN, D_PEPPOL, D_REF = "gleiche USt-IdNr.", "gleiche IBAN", "gleiche Peppol-ID", "gleiche Referenz/Kundennr."
 D_NAMEPLZ, D_MAIL, D_NAME, D_TEL = "gleicher Name + PLZ", "gleiche E-Mail", "gleicher Name", "gleiche Telefonnr."
-DUP_STARK = {D_VAT, D_IBAN, D_PEPPOL, D_NAMEPLZ}
-DUP_MITTEL = {D_REF, D_MAIL}
+D_AEHNLICH = "ähnlicher Name + PLZ"
+D_KOPIE = "Kopie mit gleichem Namen"
+# Gewicht je Grund; die Summe je Kontaktpaar ergibt die Stärke (>= 4 stark, >= 2 mittel, sonst schwach)
+DUP_GEWICHT = {D_KOPIE: 4, D_VAT: 5, D_IBAN: 5, D_PEPPOL: 4, D_NAMEPLZ: 4, D_REF: 3, D_AEHNLICH: 2, D_MAIL: 2, D_NAME: 1, D_TEL: 1}
+DUP_REIHENFOLGE = [D_KOPIE, D_VAT, D_IBAN, D_PEPPOL, D_NAMEPLZ, D_REF, D_AEHNLICH, D_MAIL, D_NAME, D_TEL]
+DUP_NUR_NAME = {D_KOPIE, D_NAMEPLZ, D_AEHNLICH, D_NAME}
 
 # ----------------------------------------------------------------- Hilfen
 INVISIBLE_RE = re.compile(r"[\s ​‌‍⁠﻿]")
@@ -156,6 +160,20 @@ def gln_from_name(name: str) -> str | None:
 
 
 _LEGAL = r"\b(gmbh|mbh|co|kg|kgaa|ag|ug|haftungsbeschraenkt|ohg|gbr|ek|e\s?k|ev|e\s?v|eg|se|ltd|limited|inc|llc|sarl|sas|sa|bv|nv|spa|srl|und|and|the|der|die|das)\b"
+
+
+COPY_RE = re.compile(r"\((?:kopie|copy|duplikat|alt|old)\)|\bkopie von\b|\bcopy of\b", re.I)
+
+
+def name_tokens(name: str) -> str:
+    """Name als sortierte Wörter: „Aufrecht, Samuel“ = „Samuel Aufrecht“; ohne Rechtsform, Umlaute, „(Kopie)“."""
+    n = COPY_RE.sub(" ", s(name)).lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        n = n.replace(a, b)
+    n = unicodedata.normalize("NFKD", n).encode("ascii", "ignore").decode()
+    n = re.sub(r"[^a-z0-9]+", " ", n)
+    n = re.sub(_LEGAL, " ", n)
+    return " ".join(sorted(t for t in n.split() if t))
 
 
 def norm_name(name: str) -> str:

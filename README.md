@@ -76,6 +76,38 @@ Cache leeren (der nächste Aufruf liest dann neu):
 docker compose down && docker volume rm $(basename "$PWD")_cache && docker compose up -d
 ```
 
+## Dubletten
+
+**Erkennung:** Verglichen werden alle aktiven Kontakte, auch Ansprechpartner. Namen werden als
+Wörter verglichen: „Aufrecht, Samuel“ = „Samuel Aufrecht“, Rechtsform, Umlaute und „(Kopie)“ zählen
+nicht. Ähnliche Namen am selben Ort (Tippfehler, „Schmid“/„Schmidt“) werden ebenfalls gefunden.
+
+| Grund | Gewicht |
+|---|---|
+| gleiche USt-IdNr., gleiche IBAN | 5 |
+| Kopie mit gleichem Namen, gleiche Peppol-ID, gleicher Name + PLZ | 4 |
+| gleiche Referenz/Kundennr. | 3 |
+| ähnlicher Name + PLZ, gleiche E-Mail | 2 |
+| gleicher Name, gleiche Telefonnr. | 1 |
+
+Die Gewichte eines Paars werden addiert: ab 4 „stark“, ab 2 „mittel“, sonst „schwach“.
+Gruppen werden nur über mittlere/starke Paare gebildet und höchstens 8 Kontakte groß. So entstehen
+keine Ketten mehr wie „Würth ↔ Schwesternverband ↔ Knupfer“ über eine gemeinsame Telefonnummer.
+Kontakte der eigenen Firma, Mitarbeiter und Benutzer werden als Vergleich angezeigt („nicht
+zusammenführen“), bekommen aber keine eigene Aufgabe. Ansprechpartner derselben Firma zählen nur
+bei gleichem Namen (gemeinsame Firmen-E-Mail ist normal).
+
+**In der Karte:**
+* Vergleichstabelle aller ähnlichen Kontakte: gleiche Werte grün, unterschiedliche gelb.
+* Vorschlag „★ behalten“: Kontakt mit Benutzerzugang, sonst mit den meisten Rechnungen, sonst mit
+  den meisten Angaben, sonst der ältere.
+* Schritt-für-Schritt-Anleitung zum Zusammenführen in Odoo 18 mit passendem Suchbegriff und
+  Warnungen zu Odoos Regeln: höchstens 3 Kontakte auf einmal, bei verschiedenen E-Mail-Adressen
+  nur Administratoren, nicht mehrere Kontakte mit Benutzerzugang.
+* **„≠ ist keine Dublette“** (mit Grund): Das Paar erscheint nicht mehr, für **alle Kollegen**.
+  Gespeichert wird im Volume (`/cache/entscheidungen.json`), nicht in Odoo. Zurücknehmen geht in der
+  Karte des Kontakts.
+
 ## Woher kommen die Werte? (Odoo 18)
 
 | Seite | Odoo-Tabelle / Feld |

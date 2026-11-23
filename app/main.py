@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import config, odoo_db
+from . import config, entscheidungen, odoo_db
 from .cache import DatenCache
 
 log = logging.getLogger("erechnung")
@@ -99,6 +99,26 @@ def route(pfad: str, request: Request, refresh: int = 0, db: int = 0):
         return kontakte(request, refresh)
     if p == "health" or p.endswith("/health"):
         return health(db)
+    if p == "api/entscheidungen" or p.endswith("/api/entscheidungen"):
+        return JSONResponse(entscheidungen.alle(), headers={"Cache-Control": "no-store"})
     if p == "favicon.ico" or p.endswith("/favicon.ico"):
         return Response(status_code=204)
     return index()
+
+
+@app.post("/{pfad:path}")
+async def route_post(pfad: str, request: Request):
+    """„Keine Dublette“ usw. für alle Kollegen speichern (im Volume, nicht in Odoo)."""
+    if not pfad.rstrip("/").endswith("api/entscheidungen"):
+        return JSONResponse({"error": "unbekannt"}, status_code=404)
+    if request.headers.get("content-type", "").split(";")[0] != "application/json":
+        return JSONResponse({"error": "JSON erwartet"}, status_code=415)
+    try:
+        body = await request.json()
+        d = entscheidungen.speichern(body.get("aktion", ""), body.get("ids") or [], body.get("wer", ""), body.get("grund", ""))
+    except (ValueError, TypeError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except OSError as e:
+        return JSONResponse({"error": f"Speichern nicht möglich (Volume {config.CACHE_DIR}?): {e}"}, status_code=500)
+    log.info("Entscheidung: %s %s von %s", body.get("aktion"), body.get("ids"), body.get("wer") or "?")
+    return JSONResponse(d)

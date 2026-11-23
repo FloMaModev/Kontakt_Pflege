@@ -9,6 +9,8 @@ Lesend abgesichert dreifach:
 from __future__ import annotations
 
 import html
+import json
+import logging
 import re
 import time
 from collections import defaultdict
@@ -20,6 +22,8 @@ from psycopg.rows import dict_row
 
 from . import checks as C
 from . import config
+
+log = logging.getLogger("erechnung.db")
 
 PEPPOL_DEFAULT_COUNTRIES = {"AT", "BE", "CH", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "IE", "IS",
                             "LT", "LU", "LV", "MT", "NL", "NO", "SE", "SI"}
@@ -190,6 +194,7 @@ def _query_all(cur, S: Schema, cid: int) -> dict:
     users = cur.fetchall()
     d["users"] = {u["id"]: (u["name"] or u["login"]) for u in users}
     d["internal_partner_ids"] = {u["partner_id"] for u in users if not u["share"]}
+    d["user_partner_ids"] = {u["partner_id"] for u in users}
     if S.has("hr_employee", "work_contact_id"):
         cur.execute("SELECT work_contact_id FROM hr_employee WHERE work_contact_id IS NOT NULL")
         d["internal_partner_ids"] |= {r["work_contact_id"] for r in cur.fetchall()}
@@ -290,7 +295,7 @@ COLS = [
     "erech_xml_datei", "erech_xml_erstellt", "erech_peppol", "erech_anzahl_xml",
     "kontrolle_status", "kontrolle_geaendert_am", "kontrolle_aenderer", "kontrolle_pruefer", "kontrolle_am",
     "kontrolle_notiz", "kontrolle_aenderungen",
-    "dublette_verdacht", "dublette_gruende", "dublette_mit", "dublette_gruppe",
+    "dublette_verdacht", "dublette_gruende", "dublette_mit", "dublette_gruppe", "dublette_json", "hat_benutzer", "intern",
     "vertriebsmitarbeiter", "kundenrang", "lieferantenrang", "schlagwoerter", "notizen", "aktiv",
     "angelegt_am", "angelegt_von", "geaendert_am", "geaendert_von", "anzahl_aenderungen", "letzte_aenderungen",
     "korr_email", "korr_vat", "korr_peppol_endpoint", "korr_peppol_eas", "korr_gln_peppol",
@@ -390,6 +395,8 @@ def _build_rows(d: dict, cid: int) -> list[dict]:
         r["rechnungs_unternehmen"] = cp["name"] or ""
         r["rechnungs_unternehmen_id"] = cp["id"]
         r["ist_rechnungsunternehmen"] = "ja" if is_cp else "nein"
+        r["hat_benutzer"] = "ja" if p["id"] in d["user_partner_ids"] else ""
+        r["intern"] = "ja" if is_internal(p) else ""
         r["kundenart"] = _kundenart(cp)
         r["referenz"] = p["ref"] or ""
         r["anrede"] = p["title"] or ""
@@ -703,81 +710,155 @@ def _pruefen(p, cp, is_cp, r, send, eas, ep, fmt, herkunft, gln_name, barcode) -
 
 
 # =================================================================== Dubletten
+MAX_GRUPPE = 8          # größere Gruppen entstehen nur durch Ketten (A~B~C~…) und sind unbrauchbar
+MAX_SCHLUESSEL = 25     # Werte, die bei mehr Kontakten vorkommen (Zentral-E-Mail, Sammel-IBAN), ignorieren
+
+
 def _duplicates(d, P, is_internal) -> dict:
-    """Gleiche Schlüssel unter aktiven Unternehmen/Einzelkontakten (ohne Unterkontakte)."""
+    """Doppelt angelegte Kontakte finden.
+
+    Verglichen werden alle aktiven Kontakte, auch Ansprechpartner. Eigene Firma, Benutzer und
+    Mitarbeiter dienen nur als Vergleich („gleiche Person wie Mitarbeiter …“), bekommen selbst aber
+    keine Aufgabe. Geschwister unter demselben Unternehmen zählen nur bei gleichem Namen
+    (gemeinsame Telefonnummer/E-Mail der Firma ist normal), Unternehmen und eigene Unterkontakte
+    nie (das kann Odoo ohnehin nicht zusammenführen).
+    """
+    act = [p for p in d["partners"] if p["active"]]
+    internal = {p["id"] for p in act if is_internal(p)}
     keys = defaultdict(set)  # (grund, wert) -> {partner_id}
-    for p in d["partners"]:
-        if p["parent_id"] or not p["active"] or is_internal(p):
-            continue
+    tokens = {}
+    for p in act:
         pid = p["id"]
-        v = C.normalize_vat(p["vat"])
-        if len(v) >= 6:
-            keys[(C.D_VAT, v)].add(pid)
+        is_cp = p["commercial_partner_id"] == pid
+        if is_cp:  # USt-IdNr./Peppol-ID übernehmen Unterkontakte vom Unternehmen
+            v = C.normalize_vat(p["vat"])
+            if len(v) >= 6:
+                keys[(C.D_VAT, v)].add(pid)
+            ep = C.s(p["peppol_endpoint"]).strip().upper()
+            if p["peppol_eas"] and ep and not (p["peppol_eas"] == "9930" and C.normalize_vat(ep) == v):
+                keys[(C.D_PEPPOL, f"{p['peppol_eas']}:{ep}")].add(pid)
         for _, san in d["banks"].get(pid, []):
             if len(san) >= 10:
                 keys[(C.D_IBAN, san)].add(pid)
-        ep = C.s(p["peppol_endpoint"]).strip().upper()
-        if p["peppol_eas"] and ep and not (p["peppol_eas"] == "9930" and C.normalize_vat(ep) == v):
-            keys[(C.D_PEPPOL, f"{p['peppol_eas']}:{ep}")].add(pid)
         ref = re.sub(r"\s", "", C.s(p["ref"])).upper()
         if len(ref) >= 3:
             keys[(C.D_REF, ref)].add(pid)
-        nn = C.norm_name(p["name"])
-        if len(nn) >= 3:
+        tk = C.name_tokens(p["name"])
+        if len(tk.replace(" ", "")) >= 3:
+            tokens[pid] = tk
             z = re.sub(r"\s", "", C.s(p["zip"]))
             if z:
-                keys[(C.D_NAMEPLZ, nn + "|" + z)].add(pid)
-            keys[(C.D_NAME, nn)].add(pid)
+                keys[(C.D_NAMEPLZ, tk + "|" + z)].add(pid)
+            keys[(C.D_NAME, tk)].add(pid)
         em = C.s(p["email"]).strip().lower()
         if "@" in em:
             keys[(C.D_MAIL, em)].add(pid)
-        ph = C.norm_phone(p["phone"]) or C.norm_phone(p["mobile"])
-        if ph:
+        for ph in {C.norm_phone(p["phone"]), C.norm_phone(p["mobile"])} - {""}:
             keys[(C.D_TEL, ph)].add(pid)
 
-    reasons = defaultdict(lambda: defaultdict(set))  # pid -> other -> {gründe}
+    edges = defaultdict(set)  # (a, b) mit a < b -> {gründe}
     for (why, _), ids in keys.items():
-        if len(ids) < 2 or len(ids) > 25:  # sehr häufige Werte (Zentral-E-Mail o. ä.) ignorieren
-            continue
-        for a in ids:
-            for b in ids:
-                if a != b:
-                    reasons[a][b].add(why)
-    # "gleicher Name" ist überflüssig, wenn "gleicher Name + PLZ" schon zutrifft
-    for a in reasons:
-        for b, w in reasons[a].items():
-            if C.D_NAMEPLZ in w:
-                w.discard(C.D_NAME)
+        if 2 <= len(ids) <= MAX_SCHLUESSEL:
+            ids = sorted(ids)
+            for i, a in enumerate(ids):
+                for b in ids[i + 1:]:
+                    edges[(a, b)].add(why)
 
-    parent = {}
+    # ähnliche Namen am selben Ort (Tippfehler, „GmbH & Co. KG“ fehlt, Bindestriche …)
+    try:
+        from rapidfuzz import fuzz, process
+    except ImportError:
+        process = None
+        log.warning("rapidfuzz fehlt: ähnliche Namen werden nicht gesucht")
+    if process:
+        by_zip = defaultdict(list)
+        for p in act:
+            z = re.sub(r"\s", "", C.s(p["zip"]))
+            if z and len(tokens.get(p["id"], "")) >= 6:
+                by_zip[z].append(p["id"])
+        for ids in by_zip.values():
+            if not 2 <= len(ids) <= 600:
+                continue
+            names = [tokens[i] for i in ids]
+            for i, name in enumerate(names[:-1]):
+                for _, _, j in process.extract(name, names[i + 1:], scorer=fuzz.token_sort_ratio,
+                                               score_cutoff=90, limit=None):
+                    j += i + 1
+                    if names[j] != name and re.findall(r"\d+", name) == re.findall(r"\d+", names[j]):
+                        a, b = sorted((ids[i], ids[j]))
+                        edges[(a, b)].add(C.D_AEHNLICH)
+
+    # „Name (Kopie)“ zu einem Kontakt mit sonst gleichem Namen
+    for (a, b), w in edges.items():
+        if C.D_NAME in w and (C.COPY_RE.search(C.s(P[a]["name"])) or C.COPY_RE.search(C.s(P[b]["name"]))):
+            w.add(C.D_KOPIE)
+            w.discard(C.D_NAME)
+
+    # unpassende Paare entfernen
+    for (a, b) in list(edges):
+        pa, pb = P[a], P[b]
+        w = edges[(a, b)]
+        if a in internal and b in internal:
+            del edges[(a, b)]
+        elif pa["commercial_partner_id"] == pb["commercial_partner_id"]:
+            if a == pa["commercial_partner_id"] or b == pb["commercial_partner_id"] \
+                    or pa["parent_id"] == b or pb["parent_id"] == a:
+                del edges[(a, b)]  # Unternehmen und eigener Unterkontakt
+            else:
+                w &= C.DUP_NUR_NAME   # Geschwister: nur gleicher Name zählt
+                if not w:
+                    del edges[(a, b)]
+        elif C.D_NAMEPLZ in w:
+            w.discard(C.D_NAME)
+            w.discard(C.D_AEHNLICH)
+
+    score = {e: sum(C.DUP_GEWICHT[x] for x in w) for e, w in edges.items()}
+
+    # Gruppen: stärkste Paare zuerst verbinden, aber keine Ketten über schwache Gründe
+    parent, size = {}, defaultdict(lambda: 1)
 
     def find(x):
         while parent.setdefault(x, x) != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
-    for a in reasons:
-        for b in reasons[a]:
-            parent[find(a)] = find(b)
-    groups = defaultdict(list)
-    for a in reasons:
-        groups[find(a)].append(a)
+    for (a, b), sc in sorted(score.items(), key=lambda kv: -kv[1]):
+        ra, rb = find(a), find(b)
+        if ra == rb:
+            continue
+        if (sc >= 2 and size[ra] + size[rb] <= MAX_GRUPPE) or (size[ra] == 1 and size[rb] == 1):
+            parent[ra] = rb
+            size[rb] += size[ra]
+    groups = defaultdict(set)
+    for a, b in edges:
+        groups[find(a)].add(a)
+        groups[find(b)].add(b)
     gno = {}
     for i, root in enumerate(sorted(groups, key=lambda g: min(groups[g])), start=1):
         for a in groups[root]:
             gno[a] = i
 
-    order = [C.D_VAT, C.D_IBAN, C.D_PEPPOL, C.D_NAMEPLZ, C.D_REF, C.D_MAIL, C.D_NAME, C.D_TEL]
+    nb = defaultdict(list)  # partner -> [(anderer, gründe, score)]
+    for (a, b), w in edges.items():
+        nb[a].append((b, w, score[(a, b)]))
+        nb[b].append((a, w, score[(a, b)]))
+
+    def level(sc):
+        return "stark" if sc >= 4 else "mittel" if sc >= 2 else "schwach"
+
     out = {}
-    for a, others in reasons.items():
-        allw = set().union(*others.values())
-        level = "stark" if allw & C.DUP_STARK else "mittel" if allw & C.DUP_MITTEL else "schwach"
-        ranked = sorted(others.items(), key=lambda kv: (min(order.index(w) for w in kv[1]), kv[0]))
+    for a, lst in nb.items():
+        if a in internal:
+            continue  # eigene Firma/Mitarbeiter: keine eigene Aufgabe
+        lst.sort(key=lambda x: (-x[2], x[0]))
+        allw = set().union(*(w for _, w, _ in lst))
+        ordered = lambda ws: [x for x in C.DUP_REIHENFOLGE if x in ws]
         out[a] = {
-            "dublette_verdacht": level,
-            "dublette_gruende": "; ".join(w for w in order if w in allw),
-            "dublette_mit": "; ".join(f"{_clean_list(P[b]['name'])} (#{b}): {', '.join(w for w in order if w in ws)}"
-                                      for b, ws in ranked[:10]),
-            "dublette_gruppe": gno[a],
+            "dublette_verdacht": level(lst[0][2]),
+            "dublette_gruende": "; ".join(ordered(allw)),
+            "dublette_mit": "; ".join(f"{_clean_list(P[b]['name'])} (#{b}): {', '.join(ordered(w))}" for b, w, _ in lst[:10]),
+            "dublette_gruppe": gno.get(a, 0),
+            "dublette_json": json.dumps([{"id": b, "gruende": ordered(w), "score": sc, "intern": b in internal}
+                                         for b, w, sc in lst[:8]], ensure_ascii=False),
         }
     return out
